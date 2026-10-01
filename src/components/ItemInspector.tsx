@@ -1,16 +1,20 @@
-import { AlertTriangle, BringToFront, Copy, RotateCw, SendToBack, Trash2 } from 'lucide-react';
+import { AlertTriangle, BringToFront, Copy, ExternalLink, RotateCw, SendToBack, Trash2 } from 'lucide-react';
 import { type Issue, analyzeLayoutCached } from '../furniture/analysis';
 import { CATEGORIES, CATEGORY_ORDER, COLOR_SWATCHES } from '../furniture/categories';
-import { DESK_WIDTHS, MONITOR_SIZES, TYPE_LABELS } from '../furniture/presets';
+import { DESK_WIDTHS, MONITOR_SIZES, TV_SIZES, TYPE_LABELS } from '../furniture/presets';
 import { canHostSurfaceItems, isDesk } from '../furniture/rules';
+import { SHAPE_CHOICES, type ShapeChoice, applyShapeChoice, canBeRound, shapeChoiceOf } from '../furniture/shapeChoice';
 import { CLEARANCE_SIDES } from '../geometry/clearance';
 import { type WallDistances, wallDistances } from '../geometry/distances';
-import { footprintBox, lSegment } from '../geometry/footprint';
+import { footprintBox, isCircle, lSegment } from '../geometry/footprint';
 import { isQuarterTurn, normalizeAngle } from '../geometry/rect';
+import { roomForBox } from '../plan/rooms';
+import { roomBounds } from '../plan/shape';
 import { projectStore, selectItems, useEditor } from '../store';
 import { ITEM_LIMITS } from '../store/defaults';
-import type { Category, Clearance, FurnitureItem, Placement } from '../types';
+import type { Category, Clearance, FurnitureItem, FurnitureType, Placement, ProductRef } from '../types';
 import { formatNumber } from '../utils/format';
+import { safeHttpUrl } from '../utils/validate';
 import { NumberField } from './ui/NumberField';
 import { Section, Segmented, Switch, TextField } from './ui/controls';
 
@@ -18,13 +22,20 @@ const SIDE_PREFIX: Record<keyof Omit<Clearance, 'enabled'>, string> = { front: '
 
 /** Properties and actions for the selected object. */
 export function ItemInspector({ item }: { item: FurnitureItem }) {
-  const room = useEditor((s) => s.room);
+  const rooms = useEditor((s) => s.rooms);
   const items = useEditor(selectItems);
   const actions = projectStore.getState();
-  const analysis = analyzeLayoutCached(items, room);
+  const analysis = analyzeLayoutCached(items, rooms);
   const issues = analysis.issues.filter((i) => i.itemId === item.id);
   const box = footprintBox(item);
-  const walls = wallDistances(box, room);
+  // Positions and wall distances are measured in the item's own room.
+  const room = roomForBox(box, rooms);
+  const walls = wallDistances(box, room.corners);
+  // X and Y are the distances to the walls on the left and above (for a rectangle, from its
+  // top-left corner); where no wall is in line, they count from the room's outer extent.
+  const bounds = roomBounds(room);
+  const boxLeft = Number.isFinite(walls.left) ? walls.left : box.minX - bounds.minX;
+  const boxTop = Number.isFinite(walls.top) ? walls.top : box.minY - bounds.minY;
   const host = item.attachedTo ? items.find((i) => i.id === item.attachedTo) : undefined;
   const update = (patch: Parameters<typeof actions.updateItem>[1]) => actions.updateItem(item.id, patch);
 
@@ -63,8 +74,9 @@ export function ItemInspector({ item }: { item: FurnitureItem }) {
         </Section>
       )}
 
+      {item.product && <ProductSection product={item.product} />}
       <SizeSection item={item} />
-      <PositionSection item={item} walls={walls} boxLeft={box.minX} boxTop={box.minY} />
+      <PositionSection item={item} walls={walls} boxLeft={boxLeft} boxTop={boxTop} roomName={rooms.length > 1 ? room.name : null} />
       <PlacementSection item={item} items={items} />
       <ClearanceSection item={item} />
       {isDesk(item) && (
@@ -110,18 +122,68 @@ export function IssueList({ issues, onSelect }: { issues: Issue[]; onSelect?: (i
   );
 }
 
+/** The product this item was created from (its own copy; the catalog isn't consulted). */
+function ProductSection({ product }: { product: ProductRef }) {
+  const url = safeHttpUrl(product.productUrl);
+  const details = [product.variant, product.articleNumber && `Article ${product.articleNumber}`].filter(Boolean).join(' · ');
+  return (
+    <Section title="Product" aside={<span className="section-hint">{product.manufacturer}</span>}>
+      <div className="product-ref">
+        <div className="product-ref-name">{[product.productName, product.productType].filter(Boolean).join(' ')}</div>
+        {details && <div className="product-ref-meta">{details}</div>}
+        {product.sourceLastVerified && <div className="product-ref-meta">Catalog size checked on {product.sourceLastVerified}</div>}
+        {url && (
+          <a className="about-link product-ref-link" href={url} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={13} />
+            Product page
+          </a>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/** What the depth of an L-shape's arms means for each kind. */
+const L_DEPTH_LABEL: Partial<Record<FurnitureType, string>> = { sofa: 'Seat depth', 'kitchen-cabinet': 'Counter depth' };
+
 function SizeSection({ item }: { item: FurnitureItem }) {
   const { resizeItem, updateItem } = projectStore.getState();
   const isRegularDesk = item.type === 'desk' || item.type === 'sit-stand-desk';
-  const monitorMatch = MONITOR_SIZES.find((m) => m.width === item.width && m.depth === item.depth);
+  const screens = item.type === 'monitor' ? MONITOR_SIZES : item.type === 'tv' ? TV_SIZES : null;
+  const screenMatch = screens?.find((m) => m.width === item.width && m.depth === item.depth);
+  const lDepthLabel = L_DEPTH_LABEL[item.type] ?? 'Top depth';
+  const circle = isCircle(item);
+  const setShape = (choice: ShapeChoice) => {
+    const { shape, width, depth } = applyShapeChoice(item, choice);
+    resizeItem(item.id, { width, depth }, { shape });
+  };
 
   return (
     <Section title="Size" aside={<span className="section-hint">cm</span>}>
       <div className="grid-3">
-        <NumberField label="Width" prefix="W" value={item.width} min={ITEM_LIMITS.min} max={ITEM_LIMITS.max} onCommit={(width) => resizeItem(item.id, { width })} />
-        <NumberField label="Depth" prefix="D" value={item.depth} min={ITEM_LIMITS.min} max={ITEM_LIMITS.max} onCommit={(depth) => resizeItem(item.id, { depth })} />
+        {circle ? (
+          <NumberField
+            label="Diameter"
+            prefix="Ø"
+            value={item.width}
+            min={ITEM_LIMITS.min}
+            max={ITEM_LIMITS.max}
+            onCommit={(diameter) => resizeItem(item.id, { width: diameter, depth: diameter })}
+          />
+        ) : (
+          <>
+            <NumberField label="Width" prefix="W" value={item.width} min={ITEM_LIMITS.min} max={ITEM_LIMITS.max} onCommit={(width) => resizeItem(item.id, { width })} />
+            <NumberField label="Depth" prefix="D" value={item.depth} min={ITEM_LIMITS.min} max={ITEM_LIMITS.max} onCommit={(depth) => resizeItem(item.id, { depth })} />
+          </>
+        )}
         <NumberField label="Height" prefix="H" value={item.height} min={0} max={ITEM_LIMITS.max} onCommit={(height) => updateItem(item.id, { height })} />
       </div>
+
+      {canBeRound(item) && (
+        <div className="quick-sizes">
+          <Segmented<ShapeChoice> label="Shape" value={shapeChoiceOf(item)} onChange={setShape} options={SHAPE_CHOICES} />
+        </div>
+      )}
 
       {isRegularDesk && (
         <div className="quick-sizes">
@@ -134,17 +196,18 @@ function SizeSection({ item }: { item: FurnitureItem }) {
         </div>
       )}
 
-      {item.type === 'monitor' && (
+      {screens && (
         <div className="quick-sizes">
           <Segmented<number>
-            label="Monitor size"
-            value={monitorMatch?.inches ?? null}
+            label={`${TYPE_LABELS[item.type]} size`}
+            value={screenMatch?.inches ?? null}
             onChange={(inches) => {
-              const m = MONITOR_SIZES.find((s) => s.inches === inches)!;
-              const renamed = /^Monitor \d+″$/.test(item.name) ? { name: `Monitor ${m.label}` } : {};
+              const m = screens.find((s) => s.inches === inches)!;
+              const prefix = TYPE_LABELS[item.type];
+              const renamed = new RegExp(`^${prefix} \\d+″$`).test(item.name) ? { name: `${prefix} ${m.label}` } : {};
               resizeItem(item.id, { width: m.width, depth: m.depth }, { height: m.height, ...renamed });
             }}
-            options={MONITOR_SIZES.map((m) => ({ value: m.inches, label: m.label, title: `${m.width} × ${m.depth} cm footprint` }))}
+            options={screens.map((m) => ({ value: m.inches, label: m.label, title: `${m.width} × ${m.depth} cm footprint` }))}
           />
         </div>
       )}
@@ -152,9 +215,9 @@ function SizeSection({ item }: { item: FurnitureItem }) {
       {item.shape.kind === 'l' && (
         <div className="grid-2" style={{ marginTop: 8 }}>
           <div>
-            <span className="field-label">Top depth</span>
+            <span className="field-label">{lDepthLabel}</span>
             <NumberField
-              label="L-desk top depth"
+              label={`L-shape ${lDepthLabel.toLowerCase()}`}
               suffix="cm"
               value={lSegment(item.width, item.depth, item.shape.segment)}
               min={10}
@@ -180,13 +243,23 @@ function SizeSection({ item }: { item: FurnitureItem }) {
   );
 }
 
-function PositionSection({ item, walls, boxLeft, boxTop }: { item: FurnitureItem; walls: WallDistances; boxLeft: number; boxTop: number }) {
+interface PositionProps {
+  item: FurnitureItem;
+  walls: WallDistances;
+  /** Left and top edge of the footprint, measured from the room's inner top-left corner. */
+  boxLeft: number;
+  boxTop: number;
+  /** Shown when the plan has several rooms, so it's clear which walls the numbers refer to. */
+  roomName: string | null;
+}
+
+function PositionSection({ item, walls, boxLeft, boxTop, roomName }: PositionProps) {
   const { setGeometry } = projectStore.getState();
   const rotation = normalizeAngle(item.rotation);
   const quarter = isQuarterTurn(rotation) ? Math.round(rotation) % 360 : null;
 
   return (
-    <Section title="Position" aside={<span className="section-hint">from top-left corner</span>}>
+    <Section title="Position" aside={<span className="section-hint">{roomName ? `in ${roomName}, from top-left` : 'from top-left corner'}</span>}>
       <div className="grid-3">
         <NumberField
           label="X position (distance from left wall)"
@@ -219,7 +292,7 @@ function PositionSection({ item, walls, boxLeft, boxTop }: { item: FurnitureItem
           return (
             <div key={side}>
               <span className="readout-label">{side[0].toUpperCase() + side.slice(1)}</span>
-              <span className={`readout-value ${cls}`}>{formatNumber(v)}</span>
+              <span className={`readout-value ${cls}`}>{Number.isFinite(v) ? formatNumber(v) : '–'}</span>
             </div>
           );
         })}

@@ -3,6 +3,12 @@ export const CANVAS = {
   background: '#e9ebee',
   floor: '#ffffff',
   wall: '#26292e',
+  /** Dashed edge of a side without a wall. */
+  openSide: 'rgba(38, 41, 46, 0.5)',
+  /** Door arcs, window glass, passage edges. */
+  opening: 'rgba(38, 41, 46, 0.55)',
+  roomName: '#55555e',
+  roomMeta: '#8e8e97',
   gridMinor: 'rgba(28, 32, 40, 0.055)',
   gridMajor: 'rgba(28, 32, 40, 0.11)',
   accent: '#2f6bff',
@@ -16,8 +22,5 @@ export const CANVAS = {
 
 export const FONT_FAMILY = "'Inter Variable', 'Segoe UI', system-ui, sans-serif";
 
-/** Wall thickness drawn outside the room interior, in screen px. */
-export const WALL_PX = 7;
-
-/** Space around the room when fitting it to the canvas, in px. */
+/** Space around the plan when fitting it to the canvas, in px. */
 export const CANVAS_PADDING = 64;

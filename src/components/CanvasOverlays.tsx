@@ -63,8 +63,8 @@ export function CanvasToolbar() {
       </div>
       <div className="divider-v" />
       <div className="toolbar-group">
-        <Chip settingKey="constrainToRoom" icon={<Lock size={13} />} tip="Keep furniture inside the room">
-          Inside room
+        <Chip settingKey="constrainToRoom" icon={<Lock size={13} />} tip="Keep furniture inside its room">
+          Inside rooms
         </Chip>
         <Chip settingKey="showClearances" icon={<Scan size={14} />} tip="Show clearance zones">
           Clearances
@@ -94,13 +94,13 @@ export function ZoomBar() {
         <button type="button" className="icon-btn" aria-label="Zoom out" data-tip="Zoom out" data-tip-pos="top" onClick={() => zoomBy(1 / 1.25)}>
           <Minus size={15} />
         </button>
-        <button type="button" className="zoom-value" data-tip="Fit room to view" data-tip-pos="top" onClick={resetView}>
+        <button type="button" className="zoom-value" data-tip="Fit plan to view" data-tip-pos="top" onClick={resetView}>
           {Math.round(zoom * 100)}%
         </button>
         <button type="button" className="icon-btn" aria-label="Zoom in" data-tip="Zoom in (or scroll)" data-tip-pos="top" onClick={() => zoomBy(1.25)}>
           <Plus size={15} />
         </button>
-        <button type="button" className="icon-btn" aria-label="Fit room" data-tip="Fit room" data-tip-pos="top" onClick={resetView}>
+        <button type="button" className="icon-btn" aria-label="Fit plan" data-tip="Fit plan" data-tip-pos="top" onClick={resetView}>
           <Maximize size={14} />
         </button>
       </div>
@@ -111,12 +111,13 @@ export function ZoomBar() {
 /** Conflict summary and free floor space, top-left of the canvas. */
 export function CanvasStatus() {
   const items = useEditor(selectItems);
-  const room = useEditor((s) => s.room);
-  const analysis = analyzeLayoutCached(items, room);
+  const rooms = useEditor((s) => s.rooms);
+  const analysis = analyzeLayoutCached(items, rooms);
   const select = (id: string | undefined) => id && projectStore.getState().select(id);
 
   const overlaps = analysis.collisions.length;
   const clearances = analysis.clearanceConflicts.length + analysis.wallBlockedClearanceIds.size;
+  const doors = analysis.blockedDoorIds.size;
   const outside = analysis.outsideIds.size;
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -135,13 +136,19 @@ export function CanvasStatus() {
           {plural(clearances, 'blocked clearance')}
         </button>
       )}
-      {outside > 0 && (
-        <button type="button" className="status-chip danger" onClick={() => select([...analysis.outsideIds][0])} title="Select the object outside the room">
-          <span className="dot" style={{ background: 'var(--danger)' }} />
-          {outside} outside room
+      {doors > 0 && (
+        <button type="button" className="status-chip warning" onClick={() => select(analysis.doorConflicts[0].itemId)} title="Select an object standing in a door's swing">
+          <span className="dot" style={{ background: 'var(--warning)' }} />
+          {plural(doors, 'blocked door')}
         </button>
       )}
-      {overlaps + clearances + outside === 0 && items.length > 0 && (
+      {outside > 0 && (
+        <button type="button" className="status-chip danger" onClick={() => select([...analysis.outsideIds][0])} title="Select the object outside the rooms">
+          <span className="dot" style={{ background: 'var(--danger)' }} />
+          {outside} outside {rooms.length === 1 ? 'room' : 'rooms'}
+        </button>
+      )}
+      {overlaps + clearances + doors + outside === 0 && items.length > 0 && (
         <span className="status-chip ok">
           <CircleCheck size={13} style={{ color: '#2f9e5a' }} />
           No conflicts
@@ -155,5 +162,12 @@ export function CanvasStatus() {
 }
 
 export function CanvasHint() {
-  return <div className="hint">Scroll to zoom · drag empty space to pan</div>;
+  const drawing = useUi((s) => s.tool === 'draw');
+  const roomSelected = useEditor((s) => s.rooms.some((r) => r.id === s.selectedId));
+  const text = drawing
+    ? 'Click to place corners · click the first corner or press Enter to finish · Backspace undoes a corner · Esc stops'
+    : roomSelected
+      ? 'Drag a wall or corner to reshape · double-click a wall to add a corner, a corner to remove it'
+      : 'Click a room to edit it · scroll to zoom · drag the floor to pan';
+  return <div className="hint">{text}</div>;
 }

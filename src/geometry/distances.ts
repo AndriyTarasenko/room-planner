@@ -1,5 +1,6 @@
-import type { RoomSize } from './bounds';
-import { type Footprint, footprintBox, worldParts } from './footprint';
+import { polygonRect } from './bounds';
+import { type Footprint, footprintBox, touchesBoxMidpoints, worldParts } from './footprint';
+import { pointInPolygon, rayToBoundary } from './polygon';
 import { type Box, type Point, isQuarterTurn } from './rect';
 
 export type Direction = 'left' | 'right' | 'top' | 'bottom';
@@ -7,13 +8,68 @@ export const DIRECTIONS: readonly Direction[] = ['left', 'right', 'top', 'bottom
 
 export type WallDistances = Record<Direction, number>;
 
-/** Clear distance from the footprint to each wall (negative when outside the room). */
-export function wallDistances(box: Box, room: RoomSize): WallDistances {
+const UNIT: Record<Direction, Point> = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 } };
+
+/**
+ * Distance from `p` to the room's edge in direction `dir`: forward to the next wall from
+ * inside the room, negative (back to the wall) from outside it.
+ */
+function distanceAlong(p: Point, dir: Point, room: readonly Point[]): number {
+  if (pointInPolygon(p, room, 1e-6)) return rayToBoundary(p, dir, room);
+  const back = rayToBoundary(p, { x: -dir.x, y: -dir.y }, room);
+  return Number.isFinite(back) ? -back : Infinity;
+}
+
+/**
+ * Points along one side of a box from which to measure outward: its ends, its middle and
+ * every room corner in between, which is where a stepped wall comes closest.
+ */
+function sideSamples(box: Box, direction: Direction, room: readonly Point[]): Point[] {
+  const vertical = direction === 'left' || direction === 'right';
+  const fixed = direction === 'left' ? box.minX : direction === 'right' ? box.maxX : direction === 'top' ? box.minY : box.maxY;
+  const lo = vertical ? box.minY : box.minX;
+  const hi = vertical ? box.maxY : box.maxX;
+  const inset = Math.min(0.01, (hi - lo) / 4);
+  const ts = [(lo + hi) / 2, lo + inset, hi - inset];
+  for (const c of room) {
+    const t = vertical ? c.y : c.x;
+    if (t > lo && t < hi) ts.push(t);
+  }
+  return ts.map((t) => (vertical ? { x: fixed, y: t } : { x: t, y: fixed }));
+}
+
+/** The closest wall in one direction from a box side, and where along the side it is measured. */
+function nearestInDirection(box: Box, direction: Direction, room: readonly Point[]): { from: Point; value: number } {
+  const samples = sideSamples(box, direction, room);
+  let best = { from: samples[0], value: distanceAlong(samples[0], UNIT[direction], room) };
+  for (const from of samples.slice(1)) {
+    const value = distanceAlong(from, UNIT[direction], room);
+    // Prefer the middle of the side unless another point is clearly closer.
+    if (value < best.value - 0.05) best = { from, value };
+  }
+  return best;
+}
+
+/**
+ * Clear distance from the footprint to the nearest wall of the room in each direction
+ * (negative when it pokes through that wall). For stepped rooms this is the closest wall
+ * anywhere along that side of the box.
+ */
+export function wallDistances(box: Box, room: readonly Point[]): WallDistances {
+  const rect = polygonRect(room);
+  if (rect) {
+    return {
+      left: box.minX - rect.x,
+      right: rect.x + rect.width - box.maxX,
+      top: box.minY - rect.y,
+      bottom: rect.y + rect.depth - box.maxY,
+    };
+  }
   return {
-    left: box.minX,
-    right: room.width - box.maxX,
-    top: box.minY,
-    bottom: room.depth - box.maxY,
+    left: nearestInDirection(box, 'left', room).value,
+    right: nearestInDirection(box, 'right', room).value,
+    top: nearestInDirection(box, 'top', room).value,
+    bottom: nearestInDirection(box, 'bottom', room).value,
   };
 }
 
@@ -26,20 +82,27 @@ export interface MeasureLine {
 }
 
 /**
- * Dimension lines from an item to the four walls. For axis-aligned items the line runs
- * through the item center; for freely rotated items it starts at the corner closest to the wall.
+ * Dimension lines from an item to the walls around it. For axis-aligned items and circles the
+ * line runs through the item center (or where a stepped wall comes closest); for freely
+ * rotated items it starts at the corner closest to the wall.
  */
-export function wallMeasureLines(item: Footprint, room: RoomSize): MeasureLine[] {
+export function wallMeasureLines(item: Footprint, room: readonly Point[]): MeasureLine[] {
+  const rect = polygonRect(room);
+  if (!rect) return polygonMeasureLines(item, room);
   const box = footprintBox(item);
   const d = wallDistances(box, room);
-  if (isQuarterTurn(item.rotation) && item.shape.kind === 'rect') {
+  const left = rect.x;
+  const right = rect.x + rect.width;
+  const top = rect.y;
+  const bottom = rect.y + rect.depth;
+  if (touchesBoxMidpoints(item)) {
     const cx = (box.minX + box.maxX) / 2;
     const cy = (box.minY + box.maxY) / 2;
     return [
-      { direction: 'left', from: { x: box.minX, y: cy }, to: { x: 0, y: cy }, value: d.left },
-      { direction: 'right', from: { x: box.maxX, y: cy }, to: { x: room.width, y: cy }, value: d.right },
-      { direction: 'top', from: { x: cx, y: box.minY }, to: { x: cx, y: 0 }, value: d.top },
-      { direction: 'bottom', from: { x: cx, y: box.maxY }, to: { x: cx, y: room.depth }, value: d.bottom },
+      { direction: 'left', from: { x: box.minX, y: cy }, to: { x: left, y: cy }, value: d.left },
+      { direction: 'right', from: { x: box.maxX, y: cy }, to: { x: right, y: cy }, value: d.right },
+      { direction: 'top', from: { x: cx, y: box.minY }, to: { x: cx, y: top }, value: d.top },
+      { direction: 'bottom', from: { x: cx, y: box.maxY }, to: { x: cx, y: bottom }, value: d.bottom },
     ];
   }
   const corners = worldParts(item).flat();
@@ -50,11 +113,37 @@ export function wallMeasureLines(item: Footprint, room: RoomSize): MeasureLine[]
   const t = extreme((p) => p.y, false);
   const b = extreme((p) => p.y, true);
   return [
-    { direction: 'left', from: l, to: { x: 0, y: l.y }, value: d.left },
-    { direction: 'right', from: r, to: { x: room.width, y: r.y }, value: d.right },
-    { direction: 'top', from: t, to: { x: t.x, y: 0 }, value: d.top },
-    { direction: 'bottom', from: b, to: { x: b.x, y: room.depth }, value: d.bottom },
+    { direction: 'left', from: l, to: { x: left, y: l.y }, value: d.left },
+    { direction: 'right', from: r, to: { x: right, y: r.y }, value: d.right },
+    { direction: 'top', from: t, to: { x: t.x, y: top }, value: d.top },
+    { direction: 'bottom', from: b, to: { x: b.x, y: bottom }, value: d.bottom },
   ];
+}
+
+function polygonMeasureLines(item: Footprint, room: readonly Point[]): MeasureLine[] {
+  const box = footprintBox(item);
+  const line = (direction: Direction, from: Point, value: number): MeasureLine => {
+    const u = UNIT[direction];
+    return { direction, from, to: { x: from.x + u.x * value, y: from.y + u.y * value }, value };
+  };
+  if (isQuarterTurn(item.rotation) && item.shape.kind === 'rect') {
+    return DIRECTIONS.flatMap((direction) => {
+      const { from, value } = nearestInDirection(box, direction, room);
+      return Number.isFinite(value) ? [line(direction, from, value)] : [];
+    });
+  }
+  const corners = worldParts(item).flat();
+  const extreme: Record<Direction, (a: Point, b: Point) => boolean> = {
+    left: (a, b) => a.x < b.x,
+    right: (a, b) => a.x > b.x,
+    top: (a, b) => a.y < b.y,
+    bottom: (a, b) => a.y > b.y,
+  };
+  return DIRECTIONS.flatMap((direction) => {
+    const from = corners.reduce((best, p) => (extreme[direction](p, best) ? p : best));
+    const value = distanceAlong(from, UNIT[direction], room);
+    return Number.isFinite(value) ? [line(direction, from, value)] : [];
+  });
 }
 
 export interface NeighborBox {

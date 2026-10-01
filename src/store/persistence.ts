@@ -1,9 +1,12 @@
-import type { ProjectData } from '../types';
+import { PROJECT_SCHEMA_VERSION, type ProjectData } from '../types';
+import { isObject } from '../utils/validate';
 import { type EditorState, type ProjectStore, selectProjectData } from './projectStore';
-import { parseProjectData, toProjectFile } from './serialization';
+import { parseProjectData, schemaVersionOf, toProjectFile } from './serialization';
 
 export const STORAGE_KEY = 'room-planner:project';
 const BACKUP_KEY = 'room-planner:project:unreadable';
+/** Untouched copy of a project saved by an older schema, kept before it is first re-saved. */
+export const legacyBackupKey = (schemaVersion: number) => `room-planner:project:schema-${schemaVersion}-backup`;
 const SAVE_DELAY_MS = 300;
 
 function storage(): Storage | null {
@@ -20,7 +23,17 @@ export function loadStoredProject(): ProjectData | null {
   const text = ls?.getItem(STORAGE_KEY);
   if (!ls || !text) return null;
   try {
-    return parseProjectData(JSON.parse(text));
+    const raw: unknown = JSON.parse(text);
+    const data = parseProjectData(raw);
+    const version = isObject(raw) ? schemaVersionOf(raw) : PROJECT_SCHEMA_VERSION;
+    if (version < PROJECT_SCHEMA_VERSION && ls.getItem(legacyBackupKey(version)) === null) {
+      try {
+        ls.setItem(legacyBackupKey(version), text);
+      } catch {
+        // Storage full: the migrated project still loads, just without the extra copy.
+      }
+    }
+    return data;
   } catch (error) {
     console.warn('Saved project could not be read; starting fresh. A copy was kept under', BACKUP_KEY, error);
     try {
@@ -45,7 +58,7 @@ export function saveProject(data: ProjectData): boolean {
 }
 
 const persistedChanged = (a: EditorState, b: EditorState) =>
-  a.room !== b.room || a.layouts !== b.layouts || a.activeLayoutId !== b.activeLayoutId || a.settings !== b.settings;
+  a.rooms !== b.rooms || a.layouts !== b.layouts || a.activeLayoutId !== b.activeLayoutId || a.settings !== b.settings;
 
 /**
  * Saves the project shortly after it changes. Skips saving mid-drag (the gesture end

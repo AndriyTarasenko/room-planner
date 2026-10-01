@@ -1,5 +1,10 @@
 import { useEffect } from 'react';
-import { projectStore } from '../store';
+import { deleteRoom } from '../components/projectActions';
+import { commitDraft, isDrawing, stopDrawing, typeLength, undoCorner } from '../editor/drawTool';
+import { useUi } from '../editor/uiStore';
+import { roomBounds } from '../plan/shape';
+import { wallFrame } from '../plan/walls';
+import { projectStore, selectSelectedItem, selectSelectedOpening, selectSelectedOpeningRoom, selectSelectedRoom } from '../store';
 
 const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'range', 'color', 'button', 'submit', 'reset']);
 
@@ -11,6 +16,35 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
 }
 
+/**
+ * Keys while drawing walls: Enter places a typed length or closes the room, Backspace (or
+ * Ctrl+Z) takes back the last corner, Escape stops drawing, digits type a wall length.
+ * Returns false for keys that keep their usual meaning.
+ */
+function handleDrawingKey(e: KeyboardEvent, key: string, mod: boolean): boolean {
+  if (mod) return key === 'z' && !e.shiftKey && undoCorner();
+  if (e.altKey) return false;
+  if (key === 'escape') {
+    const { draft, updateDraft } = useUi.getState();
+    if (draft.typed) updateDraft({ typed: '' });
+    else stopDrawing();
+    return true;
+  }
+  if (key === 'enter') {
+    commitDraft();
+    return true;
+  }
+  if (key === 'backspace' || key === 'delete') {
+    undoCorner();
+    return true;
+  }
+  if (/^[\d.,+\-*/]$/.test(e.key)) {
+    typeLength(e.key);
+    return true;
+  }
+  return false;
+}
+
 const ARROWS: Record<string, [number, number]> = {
   arrowleft: [-1, 0],
   arrowright: [1, 0],
@@ -20,7 +54,9 @@ const ARROWS: Record<string, [number, number]> = {
 
 /**
  * Global editor shortcuts: undo/redo, delete, escape, rotate, duplicate and arrow nudging.
- * Ignored while typing in a field or when a dialog is open.
+ * Delete and the arrows also work on a selected room (which takes its furniture along) and
+ * on a door or window (which slides along its wall). Ignored while typing in a field or when
+ * a dialog is open.
  */
 export function useKeyboardShortcuts() {
   useEffect(() => {
@@ -29,6 +65,11 @@ export function useKeyboardShortcuts() {
       const s = projectStore.getState();
       const key = e.key.toLowerCase();
       const mod = e.ctrlKey || e.metaKey;
+
+      if (isDrawing() && handleDrawingKey(e, key, mod)) {
+        e.preventDefault();
+        return;
+      }
 
       if (mod && key === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -40,9 +81,10 @@ export function useKeyboardShortcuts() {
         s.redo();
         return;
       }
+      const item = selectSelectedItem(s);
       if (mod && key === 'd') {
         e.preventDefault();
-        if (s.selectedId) s.duplicateItem(s.selectedId);
+        if (item) s.duplicateItem(item.id);
         return;
       }
       if (mod || e.altKey) return;
@@ -51,19 +93,38 @@ export function useKeyboardShortcuts() {
         s.select(null);
         return;
       }
-      const id = s.selectedId;
-      if (!id) return;
+      const room = selectSelectedRoom(s);
+      const opening = selectSelectedOpening(s);
       if (key === 'delete' || key === 'backspace') {
+        if (item) s.deleteItem(item.id);
+        else if (room) deleteRoom(room.id);
+        else if (opening) s.deleteOpening(opening.id);
+        else return;
         e.preventDefault();
-        s.deleteItem(id);
       } else if (key === 'r') {
+        if (!item) return;
         e.preventDefault();
-        s.rotateBy(id, e.shiftKey ? -90 : 90);
+        s.rotateBy(item.id, e.shiftKey ? -90 : 90);
       } else if (key in ARROWS) {
-        e.preventDefault();
         const [dx, dy] = ARROWS[key];
         const step = e.shiftKey ? 10 : 1;
-        s.nudge(id, dx * step, dy * step);
+        if (item) {
+          s.nudge(item.id, dx * step, dy * step);
+        } else if (room) {
+          const b = roomBounds(room);
+          s.setRoomGeometry(room.id, { x: b.minX + dx * step, y: b.minY + dy * step }, { carry: true, coalesceKey: `nudge:${room.id}` });
+        } else if (opening) {
+          // Openings slide along their wall, with the arrows that point along it.
+          const host = selectSelectedOpeningRoom(s);
+          if (!host) return;
+          const along = wallFrame(host, opening.wall).along;
+          const projected = dx * along.x + dy * along.y;
+          if (Math.abs(projected) < 0.3) return;
+          s.updateOpening(opening.id, { offset: opening.offset + Math.sign(projected) * step }, { coalesceKey: `nudge:${opening.id}` });
+        } else {
+          return;
+        }
+        e.preventDefault();
       }
     };
     window.addEventListener('keydown', onKeyDown);

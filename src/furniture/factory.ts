@@ -1,8 +1,8 @@
 import { findCollisions } from '../geometry/collision';
-import { footprintBox, frameOf } from '../geometry/footprint';
-import { clampOffsetToRoom } from '../geometry/bounds';
+import { frameOf, worldParts } from '../geometry/footprint';
+import { clampShapeIntoPolygon, polygonLabelPoint } from '../geometry/bounds';
 import { type Point, localToWorld, normalizeAngle, worldToLocal } from '../geometry/rect';
-import type { Category, Clearance, FurnitureItem, Placement, Room } from '../types';
+import type { Category, Clearance, FurnitureItem, Placement, Shape } from '../types';
 import { createId } from '../utils/id';
 import { CATEGORIES } from './categories';
 import type { FurniturePreset } from './presets';
@@ -22,7 +22,7 @@ export function createItemFromPreset(preset: FurniturePreset, position: Point): 
     height: preset.height,
     rotation: preset.rotation ?? 0,
     category: preset.category,
-    color: CATEGORIES[preset.category].color,
+    color: preset.color ?? CATEGORIES[preset.category].color,
     notes: '',
     placement: preset.placement,
     ignoreCollisions: false,
@@ -40,13 +40,14 @@ export interface CustomItemInput {
   height: number;
   category: Category;
   placement: Placement;
+  /** Rectangular or round (a circle when width and depth are equal). */
+  shape: Shape;
 }
 
 export function createCustomItem(input: CustomItemInput, position: Point): FurnitureItem {
   return createItemFromPreset(
     {
       id: 'custom',
-      group: 'Other',
       label: input.name,
       name: input.name.trim() || 'Object',
       type: 'generic',
@@ -55,6 +56,7 @@ export function createCustomItem(input: CustomItemInput, position: Point): Furni
       depth: input.depth,
       height: input.height,
       placement: input.placement,
+      shape: input.shape,
     },
     position,
   );
@@ -130,20 +132,21 @@ export function chairSpotForDesk(chair: FurnitureItem, desk: FurnitureItem): Poi
 }
 
 /**
- * Finds a sensible spot for a new item: the requested point (or room center), nudged
- * outward in 10 cm steps until it neither collides with anything nor leaves the room.
+ * Finds a sensible spot for a new item in a room (its floor polygon): the requested point (or
+ * the middle of the room), nudged outward in 10 cm steps until it neither collides with
+ * anything nor leaves the room.
  */
-export function findFreeSpot(item: FurnitureItem, room: Room, existing: readonly FurnitureItem[], preferred?: Point): Point {
-  const start = preferred ?? { x: room.width / 2, y: room.depth / 2 };
+export function findFreeSpot(item: FurnitureItem, room: readonly Point[], existing: readonly FurnitureItem[], preferred?: Point): Point {
+  const start = preferred ?? polygonLabelPoint(room).point;
+  const offset = (p: Point) => clampShapeIntoPolygon(worldParts({ ...item, ...p }), room);
   const fits = (p: Point) => {
     const candidate = { ...item, ...p };
-    const box = footprintBox(candidate);
-    const off = clampOffsetToRoom(box, room);
-    if (off.dx !== 0 || off.dy !== 0) return false;
+    const off = offset(p);
+    if (Math.abs(off.dx) > 1e-9 || Math.abs(off.dy) > 1e-9) return false;
     return findCollisions([candidate, ...existing], (a, b) => (a.id === item.id || b.id === item.id) && canCollide(a, b)).length === 0;
   };
   const inside = (p: Point): Point => {
-    const off = clampOffsetToRoom(footprintBox({ ...item, ...p }), room);
+    const off = offset(p);
     return { x: p.x + off.dx, y: p.y + off.dy };
   };
 

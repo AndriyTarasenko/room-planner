@@ -7,12 +7,24 @@ import { pointInConvexPolygon } from '../geometry/polygon';
 import type { FurnitureItem, FurnitureType } from '../types';
 
 const DESK_TYPES: ReadonlySet<FurnitureType> = new Set(['desk', 'sit-stand-desk', 'l-desk']);
-const HOST_TYPES: ReadonlySet<FurnitureType> = new Set([...DESK_TYPES, 'sideboard', 'shelf', 'generic']);
+const HOST_TYPES: ReadonlySet<FurnitureType> = new Set([...DESK_TYPES, 'table', 'sideboard', 'shelf', 'kitchen-cabinet', 'generic']);
 
 export const isDesk = (item: Pick<FurnitureItem, 'type'>) => DESK_TYPES.has(item.type);
 
 /** Items that monitors and other surface items can stand on. */
 export const canHostSurfaceItems = (item: FurnitureItem) => item.placement === 'floor' && HOST_TYPES.has(item.type);
+
+/**
+ * Where a new surface item goes when it wasn't dropped onto a host and no host is selected:
+ * a TV onto a TV bench, kitchen items (microwave, wall cabinet) onto a kitchen counter, and
+ * everything else (monitors, consoles) onto the first desk.
+ */
+export function defaultHost(item: FurnitureItem, items: readonly FurnitureItem[]): FurnitureItem | null {
+  const hosts = items.filter((i) => i.id !== item.id && canHostSurfaceItems(i));
+  if (item.type === 'tv') return hosts.find((i) => /\btv\b/i.test(i.name)) ?? null;
+  if (item.category === 'kitchen') return hosts.find((i) => i.type === 'kitchen-cabinet') ?? null;
+  return hosts.find(isDesk) ?? null;
+}
 
 /** Floor items collide with floor items, surface items with surface items. */
 export function canCollide(a: FurnitureItem, b: FurnitureItem): boolean {
@@ -27,6 +39,9 @@ export function canIntrudeClearance(owner: FurnitureItem, other: FurnitureItem):
   if (isDesk(owner) && other.category === 'seating') return false;
   return true;
 }
+
+/** Floor furniture in a door's swing keeps the door from opening; monitors on a desk don't. */
+export const canBlockDoor = (item: FurnitureItem) => item.placement === 'floor' && !item.ignoreCollisions;
 
 /** Topmost host item whose footprint contains the center of `item`. */
 export function findHostUnder(item: FurnitureItem, items: readonly FurnitureItem[]): FurnitureItem | null {

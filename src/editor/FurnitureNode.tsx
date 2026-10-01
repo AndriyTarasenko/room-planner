@@ -1,8 +1,8 @@
 import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
-import { memo } from 'react';
-import { Group, Line, Rect } from 'react-konva';
-import { localOutline } from '../geometry/footprint';
+import { memo, useRef } from 'react';
+import { Ellipse, Group, Line, Rect } from 'react-konva';
+import { isCircle, localOutline } from '../geometry/footprint';
 import { localToWorld } from '../geometry/rect';
 import { projectStore, selectItems } from '../store';
 import { ITEM_LIMITS } from '../store/defaults';
@@ -44,6 +44,8 @@ function cornerRadius(item: FurnitureItem): number {
 /** A single piece of furniture: draggable, selectable, and transformable when selected. */
 export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected, colliding, outside }: Props) {
   const hovered = useUi((s) => s.hoveredId === item.id);
+  /** A circle being resized stays a circle; decided when the gesture starts. */
+  const resizingCircle = useRef(false);
 
   const baseStroke = shade(item.color, 0.38);
   const stroke = colliding ? CANVAS.danger : selected ? CANVAS.accent : hovered ? shade(item.color, 0.6) : baseStroke;
@@ -76,7 +78,7 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     const current = currentItem(item.id);
     if (!current) return;
     const result = resolveDragPosition(current, node.position(), {
-      room: s.room,
+      rooms: s.rooms,
       items: selectItems(s),
       settings: s.settings,
       scale,
@@ -97,6 +99,8 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     const s = projectStore.getState();
     s.select(item.id);
     s.beginGesture();
+    const current = currentItem(item.id);
+    resizingCircle.current = current !== undefined && isCircle(current);
   };
 
   /**
@@ -121,9 +125,15 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     }
 
     const clampSize = (v: number) => Math.min(ITEM_LIMITS.max, Math.max(ITEM_LIMITS.min, Math.round(v)));
-    const width = clampSize(current.width * node.scaleX());
-    const depth = clampSize(current.depth * node.scaleY());
+    let width = clampSize(current.width * node.scaleX());
+    let depth = clampSize(current.depth * node.scaleY());
     node.scale({ x: 1, y: 1 });
+    if (resizingCircle.current) {
+      // Either handle sets the diameter; the circle grows evenly on the other axis.
+      const diameter = anchor === 'middle-left' || anchor === 'middle-right' ? width : depth;
+      width = diameter;
+      depth = diameter;
+    }
 
     // Local-frame shift of the center that keeps the edge opposite the dragged anchor fixed.
     let lx = 0;
@@ -169,7 +179,9 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
         if (useUi.getState().hoveredId === item.id) useUi.getState().setHovered(null);
       }}
     >
-      {outline ? (
+      {item.shape.kind === 'round' ? (
+        <Ellipse {...bodyProps} radiusX={item.width / 2} radiusY={item.depth / 2} />
+      ) : outline ? (
         <Line {...bodyProps} points={outline.flatMap((p) => [p.x, p.y])} closed />
       ) : (
         <Rect

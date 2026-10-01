@@ -13,3 +13,5 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const ROOM_LIMITS = { min: 50, max: 5000 } as const;
 export const ITEM_LIMITS = { min: 1, max: 2000 } as const;
+/** Largest distance from the plan origin a room or item may be placed at, in cm. */
+export const POSITION_LIMIT = 100_000;

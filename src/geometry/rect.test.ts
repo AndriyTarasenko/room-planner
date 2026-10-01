@@ -10,6 +10,7 @@ import {
   worldToLocal,
 } from './rect';
 import { footprintBox, localOutline, localParts, worldParts } from './footprint';
+import { polygonArea } from './polygon';
 
 describe('angles', () => {
   it('normalizes angles into [0, 360)', () => {
@@ -75,7 +76,7 @@ describe('footprints', () => {
     const l = { ...rect, width: 160, depth: 120, shape: { kind: 'l' as const, segment: 60, returnSide: 'right' as const } };
     const parts = localParts(l);
     expect(parts).toHaveLength(2);
-    const area = parts.reduce((s, p) => s + p.width * p.depth, 0);
+    const area = parts.reduce((s, p) => s + polygonArea(p), 0);
     expect(area).toBe(160 * 60 + 60 * 60);
     expect(localOutline(l)).toHaveLength(6);
     expect(footprintBox(l)).toEqual({ minX: 20, minY: 40, maxX: 180, maxY: 160 });

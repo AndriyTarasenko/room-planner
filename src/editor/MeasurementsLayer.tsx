@@ -4,10 +4,14 @@ import { footprintBox } from '../geometry/footprint';
 import { type Point, isQuarterTurn } from '../geometry/rect';
 import type { SnapGuide } from '../geometry/snapping';
 import { type Viewport, worldToView } from '../geometry/viewport';
-import type { FurnitureItem, Room } from '../types';
+import { rectPolygon } from '../geometry/bounds';
+import { roomForBox } from '../plan/rooms';
+import { roomRect } from '../plan/shape';
+import { axisWalls, pointOnWall, wallFrame } from '../plan/walls';
+import type { FurnitureItem, Opening, Room } from '../types';
 import { formatNumber } from '../utils/format';
 import { measureTextWidth } from '../utils/measureText';
-import { CANVAS, FONT_FAMILY, WALL_PX } from './theme';
+import { CANVAS, FONT_FAMILY } from './theme';
 
 const PILL_FONT = 10.5;
 const PILL_H = 17;
@@ -20,7 +24,7 @@ const VARIANT_STYLE: Record<Variant, { line: string; pill: string; dash?: number
   gap: { line: CANVAS.pillDark, pill: CANVAS.pillDark },
 };
 
-function Pill({ at, text, fill, textColor = '#fff' }: { at: Point; text: string; fill: string; textColor?: string }) {
+export function Pill({ at, text, fill, textColor = '#fff' }: { at: Point; text: string; fill: string; textColor?: string }) {
   const w = Math.ceil(measureTextWidth(text, `600 ${PILL_FONT}px ${FONT_FAMILY}`)) + 10;
   return (
     <Group x={Math.round(at.x - w / 2)} y={Math.round(at.y - PILL_H / 2)}>
@@ -66,18 +70,53 @@ function Dimension({ line, vp, variant, muted = false }: { line: MeasureLine; vp
   );
 }
 
-/** Room width/depth dimensions outside the walls. */
-export function RoomDimensions({ room, vp }: { room: Room; vp: Viewport }) {
-  const tl = worldToView({ x: 0, y: 0 }, vp);
-  const br = worldToView({ x: room.width, y: room.depth }, vp);
-  const offset = WALL_PX + 16;
-  const y = tl.y - offset;
-  const x = tl.x - offset;
+/**
+ * The length of every wall of a room that isn't a rectangle, labelled just inside the room
+ * next to the wall.
+ */
+function WallLengths({ room, vp }: { room: Room; vp: Viewport }) {
+  return (
+    <Group listening={false}>
+      {room.corners.map((_, i) => {
+        const f = wallFrame(room, i);
+        if (f.length * vp.scale < 40) return null;
+        const mid = pointOnWall(f, f.length / 2);
+        const at = worldToView({ x: mid.x + (f.inward.x * 16) / vp.scale, y: mid.y + (f.inward.y * 16) / vp.scale }, vp);
+        return <Pill key={i} at={at} text={formatNumber(f.length)} fill={CANVAS.pillDark} />;
+      })}
+    </Group>
+  );
+}
+
+/**
+ * Interior width/depth of a rectangular room: outside its top and left walls, or, with
+ * `inside` (plans with several rooms, where a neighbor may sit right behind the wall), along
+ * its top and left edges inside the room. Other shapes get the length of each wall.
+ */
+export function RoomDimensions({ room, vp, inside = false }: { room: Room; vp: Viewport; inside?: boolean }) {
+  const rect = roomRect(room);
+  if (!rect) return <WallLengths room={room} vp={vp} />;
+  if (inside) {
+    const inset = 20 / vp.scale;
+    const { x, y, width: w, depth: d } = rect;
+    return (
+      <Group listening={false}>
+        <Dimension line={{ direction: 'top', from: { x, y: y + inset }, to: { x: x + w, y: y + inset }, value: w }} vp={vp} variant="gap" />
+        <Dimension line={{ direction: 'left', from: { x: x + inset, y }, to: { x: x + inset, y: y + d }, value: d }} vp={vp} variant="gap" />
+      </Group>
+    );
+  }
+  const tl = worldToView({ x: rect.x, y: rect.y }, vp);
+  const br = worldToView({ x: rect.x + rect.width, y: rect.y + rect.depth }, vp);
+  const walls = axisWalls(room);
+  const thickness = (axis: 'x' | 'y') => walls.find((w) => w.axis === axis && w.inward === 1)?.thickness ?? 0;
+  const y = tl.y - thickness('y') * vp.scale - 16;
+  const x = tl.x - thickness('x') * vp.scale - 16;
   const color = CANVAS.dimension;
   const text = (v: number) => `${formatNumber(v)} cm`;
   const font = `500 11px ${FONT_FAMILY}`;
-  const wText = text(room.width);
-  const dText = text(room.depth);
+  const wText = text(rect.width);
+  const dText = text(rect.depth);
   const wW = measureTextWidth(wText, font) + 12;
   const dW = measureTextWidth(dText, font) + 12;
   const midX = (tl.x + br.x) / 2;
@@ -103,27 +142,22 @@ export function RoomDimensions({ room, vp }: { room: Room; vp: Viewport }) {
 interface SelectionProps {
   item: FurnitureItem;
   items: readonly FurnitureItem[];
-  room: Room;
+  rooms: readonly Room[];
   vp: Viewport;
 }
 
 /**
- * Live distances for the selected item: to the four walls, and the gap to the nearest object
- * in each direction. Items standing on a desk show distances to the desk edges instead.
+ * Live distances for the selected item: to the four walls of its room, and the gap to the
+ * nearest object in each direction. Items standing on a desk show distances to the desk edges instead.
  */
-export function SelectionMeasurements({ item, items, room, vp }: SelectionProps) {
+export function SelectionMeasurements({ item, items, rooms, vp }: SelectionProps) {
   const host = item.attachedTo ? items.find((i) => i.id === item.attachedTo) : undefined;
 
   if (host && host.shape.kind === 'rect' && isQuarterTurn(host.rotation) && isQuarterTurn(item.rotation)) {
     const hb = footprintBox(host);
-    const local = { ...item, x: item.x - hb.minX, y: item.y - hb.minY };
-    const lines = wallMeasureLines(local, { width: hb.maxX - hb.minX, depth: hb.maxY - hb.minY })
-      .filter((l) => l.value > 0.5)
-      .map((l) => ({
-        ...l,
-        from: { x: l.from.x + hb.minX, y: l.from.y + hb.minY },
-        to: { x: l.to.x + hb.minX, y: l.to.y + hb.minY },
-      }));
+    const lines = wallMeasureLines(item, rectPolygon({ x: hb.minX, y: hb.minY, width: hb.maxX - hb.minX, depth: hb.maxY - hb.minY })).filter(
+      (l) => l.value > 0.5,
+    );
     return (
       <Group listening={false}>
         {lines.map((l) => (
@@ -138,7 +172,7 @@ export function SelectionMeasurements({ item, items, room, vp }: SelectionProps)
     .filter((o) => o.id !== item.id && o.attachedTo !== item.id && o.placement === item.placement)
     .map((o) => ({ id: o.id, box: footprintBox(o) }));
   const gaps = neighborGaps(box, others);
-  const walls = wallMeasureLines(item, room).filter((l) => l.value > 0.5);
+  const walls = wallMeasureLines(item, roomForBox(box, rooms).corners).filter((l) => l.value > 0.5);
 
   return (
     <Group listening={false}>
@@ -148,6 +182,34 @@ export function SelectionMeasurements({ item, items, room, vp }: SelectionProps)
       {gaps.map((g) => (
         <Dimension key={`g-${g.direction}`} line={g} vp={vp} variant="gap" />
       ))}
+    </Group>
+  );
+}
+
+/**
+ * Where the selected door or window sits in its wall: a chain of dimensions along the
+ * interior face, from the start corner to the opening, across it, and on to the end corner.
+ */
+export function OpeningMeasurements({ room, opening, vp }: { room: Room; opening: Opening; vp: Viewport }) {
+  const f = wallFrame(room, opening.wall);
+  const inset = 20 / vp.scale;
+  const at = (t: number) => {
+    const p = pointOnWall(f, t);
+    return { x: p.x + f.inward.x * inset, y: p.y + f.inward.y * inset };
+  };
+  const end = opening.offset + opening.width;
+  const segments: { key: string; from: number; to: number; variant: Variant }[] = [
+    { key: 'before', from: 0, to: opening.offset, variant: 'wall' },
+    { key: 'opening', from: opening.offset, to: end, variant: 'gap' },
+    { key: 'after', from: end, to: f.length, variant: 'wall' },
+  ];
+  return (
+    <Group listening={false}>
+      {segments
+        .filter((s) => s.to - s.from > 0.5)
+        .map((s) => (
+          <Dimension key={s.key} line={{ direction: 'left', from: at(s.from), to: at(s.to), value: s.to - s.from }} vp={vp} variant={s.variant} />
+        ))}
     </Group>
   );
 }

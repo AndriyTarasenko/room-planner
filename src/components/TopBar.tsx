@@ -1,4 +1,4 @@
-import { Download, FilePlus2, Redo2, Undo2, Upload } from 'lucide-react';
+import { Download, FilePlus2, Info, Redo2, Undo2, Upload } from 'lucide-react';
 import { projectStore, useEditor } from '../store';
 import { LayoutTabs } from './LayoutTabs';
 import { exportProject, importProject } from './projectActions';
@@ -14,7 +14,7 @@ function BrandMark() {
   );
 }
 
-export function TopBar({ onNewRoom }: { onNewRoom: () => void }) {
+export function TopBar({ onNewPlan, onAbout }: { onNewPlan: () => void; onAbout: () => void }) {
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
   const { undo, redo } = projectStore.getState();
@@ -34,9 +34,9 @@ export function TopBar({ onNewRoom }: { onNewRoom: () => void }) {
           <Redo2 size={16} />
         </button>
         <div className="divider-v" />
-        <button type="button" className="btn" onClick={onNewRoom}>
+        <button type="button" className="btn" onClick={onNewPlan}>
           <FilePlus2 size={15} />
-          New empty room
+          New plan
         </button>
         <button type="button" className="btn" onClick={importProject}>
           <Upload size={15} />
@@ -45,6 +45,9 @@ export function TopBar({ onNewRoom }: { onNewRoom: () => void }) {
         <button type="button" className="btn btn-secondary" onClick={exportProject}>
           <Download size={15} />
           Export JSON
+        </button>
+        <button type="button" className="icon-btn" data-tip="About" aria-label="About Room Planner" onClick={onAbout}>
+          <Info size={16} />
         </button>
       </div>
     </header>

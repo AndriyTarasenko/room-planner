@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { snapBox, snapValue } from './snapping';
+import { type WallLine, snapBox, snapValue } from './snapping';
 import { centeredViewport, fitScale, panForZoom, viewToWorld, worldToView } from './viewport';
 
-const room = { width: 380, depth: 320 };
-const base = { room, threshold: 5, walls: true, targets: [], grid: null };
+// The four walls of a 380 × 320 room.
+const walls: WallLine[] = [
+  { orientation: 'vertical', position: 0, span: [0, 320], inward: 1 },
+  { orientation: 'vertical', position: 380, span: [0, 320], inward: -1 },
+  { orientation: 'horizontal', position: 0, span: [0, 380], inward: 1 },
+  { orientation: 'horizontal', position: 320, span: [0, 380], inward: -1 },
+];
+const roomBox = { minX: 0, minY: 0, maxX: 380, maxY: 320 };
+const base = { walls, threshold: 5, targets: [], grid: null };
 
 describe('grid snapping', () => {
   it('rounds to the nearest grid step', () => {
@@ -14,7 +21,7 @@ describe('grid snapping', () => {
   });
 
   it('snaps the top-left edge of a box to the grid', () => {
-    const r = snapBox({ minX: 43, minY: 101, maxX: 223, maxY: 181 }, { ...base, walls: false, grid: 10 });
+    const r = snapBox({ minX: 43, minY: 101, maxX: 223, maxY: 181 }, { ...base, walls: [], grid: 10 });
     expect(r.dx).toBe(-3);
     expect(r.dy).toBe(-1);
     expect(r.guides).toEqual([]);
@@ -40,6 +47,15 @@ describe('wall snapping', () => {
     expect(r).toEqual({ dx: 0, dy: 0, guides: [] });
   });
 
+  it('only snaps to walls beside the box, like the side of a niche', () => {
+    // A wall from y 0 to 200 at x 300, facing left: a box below its end isn't next to it.
+    const niche: WallLine = { orientation: 'vertical', position: 300, span: [0, 200], inward: -1 };
+    expect(snapBox({ minX: 200, minY: 250, maxX: 298, maxY: 300 }, { ...base, walls: [niche] }).dx).toBe(0);
+    expect(snapBox({ minX: 200, minY: 150, maxX: 298, maxY: 190 }, { ...base, walls: [niche] }).dx).toBe(2);
+    // Only the edge facing the wall snaps: the left edge ignores a wall that faces left.
+    expect(snapBox({ minX: 302, minY: 150, maxX: 350, maxY: 190 }, { ...base, walls: [niche] }).dx).toBe(0);
+  });
+
   it('prefers edge snapping over grid snapping on the same axis', () => {
     const r = snapBox({ minX: 2, minY: 101, maxX: 182, maxY: 181 }, { ...base, grid: 25 });
     expect(r.dx).toBe(-2);
@@ -53,25 +69,25 @@ describe('object snapping', () => {
 
   it('snaps edge-to-edge next to another object', () => {
     // Sideboard 3 cm right of the desk snaps flush against it.
-    const r = snapBox({ minX: 223, minY: 0, maxX: 383, maxY: 45 }, { ...base, walls: false, targets: [desk] });
+    const r = snapBox({ minX: 223, minY: 0, maxX: 383, maxY: 45 }, { ...base, walls: [], targets: [desk] });
     expect(r.dx).toBe(-3);
     expect(r.guides[0]).toMatchObject({ orientation: 'vertical', position: 220, kind: 'object' });
   });
 
   it('aligns centers', () => {
     // Monitor 61 cm wide, center at 128 vs desk center 130.
-    const r = snapBox({ minX: 97.5, minY: 10, maxX: 158.5, maxY: 30 }, { ...base, walls: false, targets: [desk] });
+    const r = snapBox({ minX: 97.5, minY: 10, maxX: 158.5, maxY: 30 }, { ...base, walls: [], targets: [desk] });
     expect(r.dx).toBeCloseTo(2, 9);
   });
 
   it('ignores objects that are far away', () => {
     const far = { id: 'far', box: { minX: 1000, minY: 1000, maxX: 1100, maxY: 1100 } };
-    const r = snapBox({ minX: 998, minY: 500, maxX: 1010, maxY: 510 }, { ...base, walls: false, targets: [far], objectRange: 100 });
+    const r = snapBox({ minX: 998, minY: 500, maxX: 1010, maxY: 510 }, { ...base, walls: [], targets: [far], objectRange: 100 });
     expect(r.dx).toBe(0);
   });
 
   it('picks the closest candidate', () => {
-    const r = snapBox({ minX: 222, minY: 200, maxX: 262, maxY: 240 }, { ...base, walls: false, targets: [desk, { id: 'b', box: { minX: 223, minY: 150, maxX: 300, maxY: 190 } }] });
+    const r = snapBox({ minX: 222, minY: 200, maxX: 262, maxY: 240 }, { ...base, walls: [], targets: [desk, { id: 'b', box: { minX: 223, minY: 150, maxX: 300, maxY: 190 } }] });
     expect(r.dx).toBe(1);
   });
 });
@@ -79,11 +95,11 @@ describe('object snapping', () => {
 describe('coordinate conversion', () => {
   it('fits the room inside the canvas preserving proportions', () => {
     // 1000×800 canvas with 50 px padding: min(900/380, 700/320) = 2.1875
-    expect(fitScale(room, 1000, 800, 50)).toBeCloseTo(2.1875, 6);
+    expect(fitScale(roomBox, 1000, 800, 50)).toBeCloseTo(2.1875, 6);
   });
 
   it('centers the room and round-trips coordinates', () => {
-    const vp = centeredViewport(room, 1000, 800, 50);
+    const vp = centeredViewport(roomBox, 1000, 800, 50);
     expect(vp.originY).toBeCloseTo(50, 6);
     expect(vp.originX).toBeCloseTo((1000 - 380 * vp.scale) / 2, 6);
     const p = { x: 123.4, y: 56.7 };
@@ -93,8 +109,8 @@ describe('coordinate conversion', () => {
   });
 
   it('keeps the point under the cursor fixed while zooming', () => {
-    const before = centeredViewport(room, 1000, 800, 50, 1);
-    const after = centeredViewport(room, 1000, 800, 50, 2);
+    const before = centeredViewport(roomBox, 1000, 800, 50, 1);
+    const after = centeredViewport(roomBox, 1000, 800, 50, 2);
     const anchor = { x: 300, y: 200 };
     const pan = { x: 10, y: -20 };
     const worldBefore = viewToWorld({ x: anchor.x - pan.x, y: anchor.y - pan.y }, before);

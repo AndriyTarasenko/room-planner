@@ -1,5 +1,7 @@
 import { createItemFromPreset } from '../furniture/factory';
 import { findPreset } from '../furniture/presets';
+import { createOpening } from '../plan/openings';
+import { createRoom } from '../plan/rooms';
 import type { FurnitureItem, ProjectData } from '../types';
 import { createId } from '../utils/id';
 import { DEFAULT_SETTINGS } from './defaults';
@@ -11,8 +13,9 @@ function place(presetId: string, x: number, y: number, overrides: Partial<Furnit
 }
 
 /**
- * First-launch project: a 380 × 320 cm room with a 180 cm desk against the top wall,
- * a chair, two 27″ monitors on the desk and a sideboard along the right wall.
+ * First-launch project: a 380 × 320 cm office with a window behind a 180 cm desk against the
+ * top wall, a chair, two 27″ monitors on the desk, a sideboard along the right wall and a
+ * door in the bottom-left corner.
  */
 export function createSampleProject(): ProjectData {
   // Desk: left edge 40 cm from the left wall, back against the top wall.
@@ -23,19 +26,28 @@ export function createSampleProject(): ProjectData {
   // Sideboard turned 90° against the right wall.
   const sideboard = place('sideboard', 357.5, 190, { rotation: 90 });
 
+  const room = createRoom({
+    name: 'Office',
+    width: 380,
+    depth: 320,
+    // Walls are top, right, bottom, left. The bottom wall runs right to left, so the door
+    // 20 cm from the bottom-left corner is 280 cm from its start, with the hinge at its end.
+    openings: [createOpening('window', 0, 70, 120), { ...createOpening('door', 2, 280, 80), hinge: 'end' }],
+  });
   const layoutId = createId('layout');
   return {
-    room: { id: createId('room'), width: 380, depth: 320 },
+    rooms: [room],
     layouts: [{ id: layoutId, name: 'Layout A', furniture: [desk, chair, sideboard, monitorLeft, monitorRight] }],
     activeLayoutId: layoutId,
     settings: { ...DEFAULT_SETTINGS },
   };
 }
 
+/** A project with one empty room of the given size, at the plan origin. */
 export function createEmptyProject(width: number, depth: number, settings = DEFAULT_SETTINGS): ProjectData {
   const layoutId = createId('layout');
   return {
-    room: { id: createId('room'), width, depth },
+    rooms: [createRoom({ name: 'Room 1', width, depth })],
     layouts: [{ id: layoutId, name: 'Layout A', furniture: [] }],
     activeLayoutId: layoutId,
     settings: { ...settings },

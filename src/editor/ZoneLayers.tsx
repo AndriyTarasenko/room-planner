@@ -1,3 +1,4 @@
+import type { Context } from 'konva/lib/Context';
 import { Arc, Circle, Group, Line, Rect, Text } from 'react-konva';
 import type { LayoutAnalysis } from '../furniture/analysis';
 import { isDesk } from '../furniture/rules';
@@ -11,10 +12,16 @@ import { CANVAS, FONT_FAMILY } from './theme';
 const flat = (poly: Point[]) => poly.flatMap((p) => [p.x, p.y]);
 
 /** Translucent clearance areas under the furniture. Amber when something stands in them. */
-export function ClearanceZones({ items, analysis, room }: { items: readonly FurnitureItem[]; analysis: LayoutAnalysis; room: Room }) {
-  // Clipped to the room: the part behind a wall is meaningless, and amber already says it's blocked.
+export function ClearanceZones({ items, analysis, rooms }: { items: readonly FurnitureItem[]; analysis: LayoutAnalysis; rooms: readonly Room[] }) {
+  // Clipped to the floors: the part behind a wall is meaningless, and amber already says it's blocked.
+  const clipToFloors = (ctx: Context) => {
+    for (const r of rooms) {
+      r.corners.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      ctx.closePath();
+    }
+  };
   return (
-    <Group listening={false} clipX={0} clipY={0} clipWidth={room.width} clipHeight={room.depth}>
+    <Group listening={false} clipFunc={clipToFloors}>
       {items.flatMap((item) => {
         const blocked = analysis.blockedClearanceIds.has(item.id);
         const color = blocked ? CANVAS.warning : CANVAS.accent;
@@ -35,13 +42,18 @@ export function ClearanceZones({ items, analysis, room }: { items: readonly Furn
   );
 }
 
-/** Overlap regions: red for physical collisions, amber for clearance intrusions. */
+/** Overlap regions: red for physical collisions, amber for clearance intrusions and blocked doors. */
 export function ConflictRegions({ analysis }: { analysis: LayoutAnalysis }) {
   return (
     <Group listening={false}>
       {analysis.clearanceConflicts.flatMap((c, i) =>
         c.regions.map((poly, j) => (
           <Line key={`c${i}-${j}`} points={flat(poly)} closed fill={withAlpha(CANVAS.warning, 0.28)} />
+        )),
+      )}
+      {analysis.doorConflicts.flatMap((c, i) =>
+        c.regions.map((poly, j) => (
+          <Line key={`d${i}-${j}`} points={flat(poly)} closed fill={withAlpha(CANVAS.warning, 0.28)} />
         )),
       )}
       {analysis.collisions.flatMap((c, i) =>

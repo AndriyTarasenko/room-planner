@@ -1,8 +1,7 @@
-import type { RoomSize } from './bounds';
-import type { Point } from './rect';
+import { type Box, type Point, boxHeight, boxWidth } from './rect';
 
 /**
- * Maps room coordinates (cm) to canvas coordinates (px):
+ * Maps plan coordinates (cm) to canvas coordinates (px):
  * view = origin + world * scale.
  */
 export interface Viewport {
@@ -14,26 +13,26 @@ export interface Viewport {
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 8;
 
-/** Pixels per centimeter that make the room fit inside the canvas with `padding` px on each side. */
-export function fitScale(room: RoomSize, viewWidth: number, viewHeight: number, padding: number): number {
+/** Pixels per centimeter that make `bounds` fit inside the canvas with `padding` px on each side. */
+export function fitScale(bounds: Box, viewWidth: number, viewHeight: number, padding: number): number {
   const availableW = Math.max(1, viewWidth - padding * 2);
   const availableH = Math.max(1, viewHeight - padding * 2);
-  return Math.max(0.01, Math.min(availableW / room.width, availableH / room.depth));
+  return Math.max(0.01, Math.min(availableW / Math.max(1, boxWidth(bounds)), availableH / Math.max(1, boxHeight(bounds))));
 }
 
-/** Viewport with the room centered, scaled by `zoom` relative to the fit scale. */
+/** Viewport with `bounds` (usually the whole floor plan) centered, scaled by `zoom` relative to the fit scale. */
 export function centeredViewport(
-  room: RoomSize,
+  bounds: Box,
   viewWidth: number,
   viewHeight: number,
   padding: number,
   zoom = 1,
 ): Viewport {
-  const scale = fitScale(room, viewWidth, viewHeight, padding) * zoom;
+  const scale = fitScale(bounds, viewWidth, viewHeight, padding) * zoom;
   return {
     scale,
-    originX: (viewWidth - room.width * scale) / 2,
-    originY: (viewHeight - room.depth * scale) / 2,
+    originX: (viewWidth - boxWidth(bounds) * scale) / 2 - bounds.minX * scale,
+    originY: (viewHeight - boxHeight(bounds) * scale) / 2 - bounds.minY * scale,
   };
 }
 

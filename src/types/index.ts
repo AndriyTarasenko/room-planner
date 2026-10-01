@@ -3,22 +3,69 @@
  * (clockwise, matching the y-down screen coordinate system).
  */
 
+/** What kind of object an item is: drives its top-down drawing and rules like "monitors go on desks". */
 export type FurnitureType =
   | 'desk'
   | 'sit-stand-desk'
   | 'l-desk'
   | 'office-chair'
+  | 'chair'
+  | 'armchair'
+  | 'pouf'
   | 'sofa'
   | 'sideboard'
   | 'shelf'
   | 'wardrobe'
   | 'bed'
+  | 'table'
+  | 'kitchen-cabinet'
+  | 'sink'
+  | 'stove'
+  | 'appliance'
+  | 'toilet'
+  | 'washbasin'
+  | 'shower'
+  | 'bathtub'
+  | 'washer'
+  | 'tv'
   | 'monitor'
   | 'pc-tower'
   | 'console'
+  | 'plant'
   | 'generic';
 
-export type Category = 'desk' | 'seating' | 'storage' | 'bed' | 'electronics' | 'other';
+export const FURNITURE_TYPES: readonly FurnitureType[] = [
+  'desk',
+  'sit-stand-desk',
+  'l-desk',
+  'office-chair',
+  'chair',
+  'armchair',
+  'pouf',
+  'sofa',
+  'sideboard',
+  'shelf',
+  'wardrobe',
+  'bed',
+  'table',
+  'kitchen-cabinet',
+  'sink',
+  'stove',
+  'appliance',
+  'toilet',
+  'washbasin',
+  'shower',
+  'bathtub',
+  'washer',
+  'tv',
+  'monitor',
+  'pc-tower',
+  'console',
+  'plant',
+  'generic',
+];
+
+export type Category = 'desk' | 'seating' | 'storage' | 'bed' | 'kitchen' | 'bathroom' | 'electronics' | 'other';
 
 /**
  * `floor` items stand on the floor and collide with each other.
@@ -42,13 +89,15 @@ export interface Clearance {
 export type Shape =
   | { kind: 'rect' }
   /** L-shaped footprint: a main top of depth `segment` along the back edge plus a return leg. */
-  | { kind: 'l'; segment: number; returnSide: 'left' | 'right' };
+  | { kind: 'l'; segment: number; returnSide: 'left' | 'right' }
+  /** Round or oval: the ellipse that fills width × depth, a circle when both are equal. */
+  | { kind: 'round' };
 
 export interface FurnitureItem {
   id: string;
   type: FurnitureType;
   name: string;
-  /** Center of the footprint in room coordinates (origin = inner top-left corner). */
+  /** Center of the footprint in plan coordinates (the first room's inner top-left corner is 0, 0 by default). */
   x: number;
   y: number;
   width: number;
@@ -67,12 +116,79 @@ export interface FurnitureItem {
   attachedTo: string | null;
   /** Desk-only: show chair / monitor / reach guides. */
   showDeskGuides: boolean;
+  /**
+   * The catalog product this item was created from, copied at placement time. Purely
+   * informational: geometry lives in the fields above, so the item never needs the catalog.
+   */
+  product?: ProductRef;
 }
 
+/** Product details carried by a placed item (manufacturer products only). */
+export interface ProductRef {
+  /** Catalog id at the time of placement, for reference only. */
+  catalogId: string;
+  manufacturer: string;
+  productName: string;
+  productFamily?: string;
+  productType?: string;
+  variant?: string;
+  articleNumber?: string;
+  productUrl?: string;
+  /** Where the dimensions came from (URL or short description). */
+  source?: string;
+  /** YYYY-MM-DD */
+  sourceLastVerified?: string;
+}
+
+/** A point of the floor plan, in centimeters. */
+export interface PlanPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * One wall of a room: the edge between two corners. `open` walls aren't built: the railing
+ * side of a balcony, or the seam between two rooms that form one open-plan space. The
+ * thickness is kept so a wall can be switched back on.
+ */
+export interface Wall {
+  kind: 'wall' | 'open';
+  /** Drawn outside the room's interior, so interior sizes stay exact. */
+  thickness: number;
+}
+
+/** `passage` is a doorless opening, like an archway into the kitchen. */
+export type OpeningKind = 'door' | 'window' | 'passage';
+export const OPENING_KINDS: readonly OpeningKind[] = ['door', 'window', 'passage'];
+
+/** A door, window or passage in one wall of a room. */
+export interface Opening {
+  id: string;
+  kind: OpeningKind;
+  /** Index of the wall it is in (see `Room.corners`). */
+  wall: number;
+  /** Distance from the wall's start corner to the opening, along the interior face. */
+  offset: number;
+  width: number;
+  /** Doors only: which end of the opening the hinge is at. Kept for other kinds so switching back restores it. */
+  hinge: 'start' | 'end';
+  /** Doors only: swings into this room or away from it. */
+  swing: 'in' | 'out';
+}
+
+/**
+ * A room of the floor plan: any simple polygon, most often a rectangle. Corners are the
+ * interior (floor) corners in plan coordinates, clockwise on screen. Wall `i` runs from
+ * corner `i` to corner `i + 1`, the last one back to the first, and sits outside the
+ * interior, so interior sizes stay exact.
+ */
 export interface Room {
   id: string;
-  width: number;
-  depth: number;
+  name: string;
+  corners: PlanPoint[];
+  /** One per corner: `walls[i]` is the wall starting at `corners[i]`. */
+  walls: Wall[];
+  openings: Opening[];
 }
 
 export interface Layout {
@@ -95,9 +211,12 @@ export interface Settings {
   showMeasurements: boolean;
 }
 
-/** The undoable part of the application state. */
+/**
+ * The undoable part of the application state. Rooms form the floor plan shared by all
+ * layouts; furniture is stored in plan coordinates.
+ */
 export interface ProjectDocument {
-  room: Room;
+  rooms: Room[];
   layouts: Layout[];
   activeLayoutId: string;
 }
@@ -107,11 +226,19 @@ export interface ProjectData extends ProjectDocument {
 }
 
 export const PROJECT_FILE_FORMAT = 'room-planner-project';
-export const PROJECT_FILE_VERSION = 1;
+/**
+ * Version of the project file and localStorage schema.
+ * 1: initial format (stored as `version`).
+ * 2: `schemaVersion` field, optional `product` on furniture items, `table` furniture type.
+ * 3: `room` became `rooms`, each with a name, position, walls and openings (doors, windows).
+ * 4: rooms became polygons: `corners` and a list of `walls` replace position, size and the
+ *    four named sides; openings refer to a wall by index.
+ */
+export const PROJECT_SCHEMA_VERSION = 4;
 
 /** Shape of exported JSON files. */
 export interface ProjectFile extends ProjectData {
   format: typeof PROJECT_FILE_FORMAT;
-  version: number;
+  schemaVersion: number;
   exportedAt: string;
 }

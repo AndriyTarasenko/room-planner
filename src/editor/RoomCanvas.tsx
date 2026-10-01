@@ -2,46 +2,67 @@ import type Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { type DragEvent as ReactDragEvent, useEffect, useMemo, useRef } from 'react';
 import { Group, Layer, Stage, Transformer } from 'react-konva';
+import { PRODUCT_DRAG_TYPE, droppedProduct, placeProduct } from '../catalog/placeProduct';
 import { analyzeLayoutCached } from '../furniture/analysis';
 import { centeredViewport, clampZoom, panForZoom, viewToWorld } from '../geometry/viewport';
 import { useElementSize } from '../hooks/useElementSize';
-import { projectStore, selectItems, useEditor } from '../store';
+import { planExtent } from '../plan/openings';
+import { roomContaining } from '../plan/rooms';
+import {
+  projectStore,
+  selectItems,
+  selectSelectedOpening,
+  selectSelectedOpeningRoom,
+  selectSelectedRoom,
+  useEditor,
+} from '../store';
+import { DraftCapture, DraftLabels, DraftOutline } from './DraftLayer';
 import { FurnitureNode } from './FurnitureNode';
 import { LabelsLayer } from './LabelsLayer';
-import { RoomDimensions, SelectionMeasurements, SnapGuides } from './MeasurementsLayer';
-import { RoomLayer } from './RoomLayer';
+import { OpeningMeasurements, RoomDimensions, SelectionMeasurements, SnapGuides } from './MeasurementsLayer';
+import { OpeningNode } from './OpeningNode';
+import { RoomFloors, RoomLabels, RoomWalls } from './PlanLayer';
+import { RoomHandles } from './RoomHandles';
 import { ClearanceZones, ConflictRegions, DeskGuides } from './ZoneLayers';
+import { PLAN_DRAG_TYPE, addPlanElement, droppedPlanTool } from './planTools';
 import { CANVAS, CANVAS_PADDING } from './theme';
 import { useUi } from './uiStore';
-
-export const PRESET_DRAG_TYPE = 'application/x-room-planner-preset';
 
 const RESIZE_ANCHORS = ['middle-left', 'middle-right', 'top-center', 'bottom-center'];
 const ROTATION_SNAPS = [0, 45, 90, 135, 180, 225, 270, 315];
 
-/** The 2D top-down editor: room, furniture, and all visual feedback. */
+/** The 2D top-down editor: floor plan, furniture, and all visual feedback. */
 export function RoomCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const size = useElementSize(containerRef);
 
-  const room = useEditor((s) => s.room);
+  const rooms = useEditor((s) => s.rooms);
   const items = useEditor(selectItems);
   const settings = useEditor((s) => s.settings);
   const selectedId = useEditor((s) => s.selectedId);
+  const selectedRoom = useEditor(selectSelectedRoom);
+  const selectedOpening = useEditor(selectSelectedOpening);
+  const openingRoom = useEditor(selectSelectedOpeningRoom);
   const projectRevision = useEditor((s) => s.projectRevision);
   const activeLayoutId = useEditor((s) => s.activeLayoutId);
   const zoom = useUi((s) => s.zoom);
   const pan = useUi((s) => s.pan);
+  const frozenBox = useUi((s) => s.fitBox);
   const guides = useUi((s) => s.guides);
+  const drawing = useUi((s) => s.tool === 'draw');
 
+  const liveBox = useMemo(() => planExtent(rooms), [rooms]);
+  const fitBox = frozenBox ?? liveBox;
   const vp = useMemo(
-    () => centeredViewport(room, size.width, size.height, CANVAS_PADDING, zoom),
-    [room, size.width, size.height, zoom],
+    () => centeredViewport(fitBox, size.width, size.height, CANVAS_PADDING, zoom),
+    [fitBox, size.width, size.height, zoom],
   );
-  const analysis = analyzeLayoutCached(items, room);
+  const analysis = analyzeLayoutCached(items, rooms);
   const selected = selectedId ? items.find((i) => i.id === selectedId) : undefined;
+  // Room sizes are shown for the selected room, and always when the plan has a single room.
+  const dimensionRoom = selectedRoom ?? (!selectedOpening && rooms.length === 1 ? rooms[0] : null);
 
   // Floor items first, surface items (monitors…) always on top of them.
   const ordered = useMemo(
@@ -53,19 +74,30 @@ export function RoomCanvas() {
     useUi.getState().resetView();
   }, [projectRevision]);
 
-  // Attach the transformer to the selected node.
+  useEffect(() => {
+    useUi.getState().setLiveBox(liveBox);
+  }, [liveBox]);
+
+  // With nothing selected, new furniture goes into the room in the middle of the view.
+  useEffect(() => {
+    if (size.width === 0 || size.height === 0) return;
+    const center = viewToWorld({ x: size.width / 2 - pan.x, y: size.height / 2 - pan.y }, vp);
+    const room = roomContaining(center, rooms);
+    if (room) projectStore.getState().focusRoom(room.id);
+  }, [vp, pan, size.width, size.height, rooms]);
+
+  // Attach the transformer to the selected furniture (rooms and openings have their own handles).
   useEffect(() => {
     const transformer = transformerRef.current;
     const stage = stageRef.current;
     if (!transformer || !stage) return;
-    const node = selectedId ? stage.findOne(`#${selectedId}`) : undefined;
+    const node = selected ? stage.findOne(`#${selected.id}`) : undefined;
     transformer.nodes(node ? [node] : []);
     transformer.getLayer()?.batchDraw();
-  }, [selectedId, items, activeLayoutId]);
+  }, [selected, items, activeLayoutId]);
 
   const deselectIfBackground = (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const target = e.target;
-    if (target === target.getStage() || target.name() === 'floor') projectStore.getState().select(null);
+    if (e.target === e.target.getStage()) projectStore.getState().select(null);
   };
 
   const handleWheel = (e: KonvaEventObject<WheelEvent>) => {
@@ -77,7 +109,7 @@ export function RoomCanvas() {
     const factor = e.evt.ctrlKey ? Math.exp(-e.evt.deltaY * 0.01) : e.evt.deltaY > 0 ? 1 / 1.15 : 1.15;
     const nextZoom = clampZoom(zoom * factor);
     if (nextZoom === zoom) return;
-    const after = centeredViewport(room, size.width, size.height, CANVAS_PADDING, nextZoom);
+    const after = centeredViewport(fitBox, size.width, size.height, CANVAS_PADDING, nextZoom);
     useUi.getState().setView(nextZoom, panForZoom(pointer, pan, vp, after));
   };
 
@@ -86,32 +118,36 @@ export function RoomCanvas() {
     if (stage && e.target === stage) useUi.getState().setPan({ x: stage.x(), y: stage.y() });
   };
 
-  // Drag & drop from the furniture library.
+  // Drag & drop from the furniture browser and the floor plan tools.
   const handleDragOver = (e: ReactDragEvent<HTMLDivElement>) => {
-    if (e.dataTransfer.types.includes(PRESET_DRAG_TYPE)) {
+    const types = e.dataTransfer.types;
+    if (types.includes(PRODUCT_DRAG_TYPE) || types.includes(PLAN_DRAG_TYPE)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
     }
   };
   const handleDrop = (e: ReactDragEvent<HTMLDivElement>) => {
-    const presetId = e.dataTransfer.getData(PRESET_DRAG_TYPE);
+    const product = droppedProduct(e.dataTransfer);
+    const tool = droppedPlanTool(e.dataTransfer);
     const stage = stageRef.current;
-    if (!presetId || !stage) return;
+    if ((!product && !tool) || !stage) return;
     e.preventDefault();
     stage.setPointersPositions(e.nativeEvent);
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
     const world = viewToWorld({ x: pointer.x - pan.x, y: pointer.y - pan.y }, vp);
-    projectStore.getState().addPreset(presetId, world);
+    if (product) placeProduct(product, world);
+    else if (tool) addPlanElement(tool, world);
   };
 
   const ready = size.width > 0 && size.height > 0;
+  const worldProps = { x: vp.originX, y: vp.originY, scaleX: vp.scale, scaleY: vp.scale };
 
   return (
     <div
       ref={containerRef}
       className="canvas-host"
-      style={{ background: CANVAS.background }}
+      style={{ background: CANVAS.background, cursor: drawing ? 'crosshair' : undefined }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -130,9 +166,27 @@ export function RoomCanvas() {
           onTap={deselectIfBackground}
         >
           <Layer>
-            <Group x={vp.originX} y={vp.originY} scaleX={vp.scale} scaleY={vp.scale}>
-              <RoomLayer room={room} settings={settings} scale={vp.scale} />
-              {settings.showClearances && <ClearanceZones items={items} analysis={analysis} room={room} />}
+            <Group {...worldProps}>
+              <RoomFloors rooms={rooms} settings={settings} scale={vp.scale} />
+            </Group>
+            {/* Room names sit on the floor, under walls and furniture, at a constant screen size. */}
+            <RoomLabels rooms={rooms} vp={vp} hiddenId={selectedRoom?.id ?? null} />
+            <Group {...worldProps}>
+              <RoomWalls rooms={rooms} scale={vp.scale} />
+              {rooms.flatMap((room) =>
+                room.openings.map((opening) => (
+                  <OpeningNode
+                    key={opening.id}
+                    room={room}
+                    opening={opening}
+                    rooms={rooms}
+                    scale={vp.scale}
+                    selected={opening.id === selectedId}
+                    blocked={analysis.blockedDoorIds.has(opening.id)}
+                  />
+                )),
+              )}
+              {settings.showClearances && <ClearanceZones items={items} analysis={analysis} rooms={rooms} />}
               {ordered.map((item) => (
                 <FurnitureNode
                   key={item.id}
@@ -145,6 +199,8 @@ export function RoomCanvas() {
               ))}
               <DeskGuides items={items} scale={vp.scale} />
               <ConflictRegions analysis={analysis} />
+              {selectedRoom && !drawing && <RoomHandles room={selectedRoom} scale={vp.scale} />}
+              {drawing && <DraftOutline scale={vp.scale} />}
             </Group>
             <Transformer
               ref={transformerRef}
@@ -165,14 +221,17 @@ export function RoomCanvas() {
               padding={0}
               boundBoxFunc={(oldBox, newBox) => (Math.abs(newBox.width) < 6 || Math.abs(newBox.height) < 6 ? oldBox : newBox)}
             />
+            {drawing && <DraftCapture vp={vp} width={size.width} height={size.height} />}
           </Layer>
           <Layer listening={false}>
             <LabelsLayer items={ordered} vp={vp} />
-            <RoomDimensions room={room} vp={vp} />
-            {selected && settings.showMeasurements && (
-              <SelectionMeasurements item={selected} items={items} room={room} vp={vp} />
+            {dimensionRoom && <RoomDimensions room={dimensionRoom} vp={vp} inside={rooms.length > 1} />}
+            {selected && settings.showMeasurements && <SelectionMeasurements item={selected} items={items} rooms={rooms} vp={vp} />}
+            {selectedOpening && openingRoom && settings.showMeasurements && (
+              <OpeningMeasurements room={openingRoom} opening={selectedOpening} vp={vp} />
             )}
             <SnapGuides guides={guides} vp={vp} />
+            {drawing && <DraftLabels vp={vp} />}
           </Layer>
         </Stage>
       )}

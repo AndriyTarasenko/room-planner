@@ -1,9 +1,13 @@
 import { CircleCheck } from 'lucide-react';
-import { type Issue, analyzeLayoutCached } from '../furniture/analysis';
+import { type Issue, analyzeLayoutCached, doorName } from '../furniture/analysis';
+import { roomArea, roomRect } from '../plan/shape';
+import type { Room } from '../types';
 import { projectStore, selectActiveLayout, useEditor } from '../store';
 import type { FurnitureItem } from '../types';
-import { formatArea, formatPercent, formatSize } from '../utils/format';
+import { isCircle } from '../geometry/footprint';
+import { formatArea, formatFootprint, formatPercent, formatSize } from '../utils/format';
 import { IssueList } from './ItemInspector';
+import { ROOM_ICON } from './planIcons';
 import { Section } from './ui/controls';
 
 const SHORTCUTS: [string[], string][] = [
@@ -17,15 +21,22 @@ const SHORTCUTS: [string[], string][] = [
   [['Esc'], 'Deselect'],
 ];
 
-/** Right panel when nothing is selected: summary, issues and the object list. */
+/** Right panel when nothing is selected: summary, rooms, issues and the object list. */
+/** "380 × 320" for a rectangular room; other shapes are described by their area alone. */
+function roomSize(room: Room): string {
+  const rect = roomRect(room);
+  return rect ? formatSize(rect.width, rect.depth) : '';
+}
+
 export function LayoutOverview() {
   const layout = useEditor(selectActiveLayout);
-  const room = useEditor((s) => s.room);
+  const rooms = useEditor((s) => s.rooms);
   const items = layout.furniture;
-  const analysis = analyzeLayoutCached(items, room);
+  const analysis = analyzeLayoutCached(items, rooms);
   const select = (id: string) => projectStore.getState().select(id);
 
   const byId = new Map(items.map((i) => [i.id, i]));
+  const roomById = new Map(rooms.map((r) => [r.id, r]));
   const name = (id: string) => byId.get(id)?.name || 'Object';
   // One entry per problem, phrased from the layout's point of view.
   const described: Issue[] = [
@@ -38,10 +49,16 @@ export function LayoutOverview() {
         message: `${name(c.intruderId)} is in the clearance of ${name(c.ownerId)}`,
       }),
     ),
+    ...analysis.doorConflicts.map((c): Issue => {
+      const room = roomById.get(c.roomId);
+      return { kind: 'clearance', itemId: c.itemId, message: `${name(c.itemId)} blocks ${room ? doorName(room) : 'a door'}` };
+    }),
     ...[...analysis.wallBlockedClearanceIds].map(
       (id): Issue => ({ kind: 'clearance', itemId: id, message: `The clearance of ${name(id)} runs into a wall` }),
     ),
-    ...[...analysis.outsideIds].map((id): Issue => ({ kind: 'outside', itemId: id, message: `${name(id)} is outside the room` })),
+    ...[...analysis.outsideIds].map(
+      (id): Issue => ({ kind: 'outside', itemId: id, message: `${name(id)} is ${rooms.length === 1 ? 'outside the room' : 'not fully inside a room'}` }),
+    ),
   ];
 
   const topLevel = items.filter((i) => !i.attachedTo || !byId.has(i.attachedTo));
@@ -51,10 +68,17 @@ export function LayoutOverview() {
     <div>
       <Section title={layout.name} aside={<span className="section-hint num">{items.length} objects</span>}>
         <div className="stat-grid">
-          <div>
-            <span className="stat-label">Room</span>
-            <span className="stat-value">{formatSize(room.width, room.depth)} cm</span>
-          </div>
+          {rooms.length === 1 ? (
+            <div>
+              <span className="stat-label">Room</span>
+              <span className="stat-value">{roomRect(rooms[0]) ? `${roomSize(rooms[0])} cm` : `${rooms[0].corners.length} walls`}</span>
+            </div>
+          ) : (
+            <div>
+              <span className="stat-label">Rooms</span>
+              <span className="stat-value">{rooms.length}</span>
+            </div>
+          )}
           <div>
             <span className="stat-label">Floor area</span>
             <span className="stat-value">{formatArea(analysis.usage.total)}</span>
@@ -67,6 +91,24 @@ export function LayoutOverview() {
             <span className="stat-label">Free share</span>
             <span className="stat-value">{formatPercent(analysis.usage.ratio)}</span>
           </div>
+        </div>
+      </Section>
+
+      <Section title="Rooms" aside={<span className="section-hint">click to edit</span>}>
+        <div className="object-list">
+          {rooms.map((room) => {
+            const usage = analysis.roomUsage.get(room.id);
+            return (
+              <button key={room.id} type="button" className="object-row" onClick={() => select(room.id)}>
+                <span className="object-row-icon">{ROOM_ICON}</span>
+                <span className="name">{room.name}</span>
+                <span className="size" title={usage ? `${formatPercent(usage.ratio)} of the floor is free` : undefined}>
+                  {roomRect(room) ? `${roomSize(room)} · ` : ''}
+                  {formatArea(roomArea(room))}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </Section>
 
@@ -124,7 +166,7 @@ function ObjectRow({ item, child, flagged, onSelect }: { item: FurnitureItem; ch
       <span className="swatch" style={{ background: item.color, width: 12, height: 12 }} />
       <span className="name">{item.name}</span>
       {flagged && <span className="flag" style={{ background: 'var(--danger)' }} title="Has a problem" />}
-      <span className="size">{formatSize(item.width, item.depth)}</span>
+      <span className="size">{formatFootprint(item.width, item.depth, isCircle(item))}</span>
     </button>
   );
 }

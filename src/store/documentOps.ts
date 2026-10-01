@@ -2,13 +2,24 @@
  * Pure, immutable operations on the project document. The Zustand store wraps these
  * with history and selection handling; keeping them here makes them easy to test.
  */
-import { clampOffsetToRoom } from '../geometry/bounds';
-import { footprintBox, frameOf } from '../geometry/footprint';
+import { frameOf, worldParts } from '../geometry/footprint';
 import { localToWorld, normalizeAngle, worldToLocal } from '../geometry/rect';
-import type { FurnitureItem, Layout, ProjectDocument, Room } from '../types';
+import { floorClampOffset, itemIdsInRoom } from '../plan/rooms';
+import { moveRoomTo, resizeRect, roomBounds, roomRect } from '../plan/shape';
+import type { FurnitureItem, Layout, Opening, ProjectDocument, Room } from '../types';
 import { createId } from '../utils/id';
 
 export type Geometry = Pick<FurnitureItem, 'x' | 'y' | 'width' | 'depth' | 'rotation'>;
+/**
+ * Position and size of a room: `x`, `y` is the top-left of its floor's bounding box (the
+ * inner top-left corner of a rectangle). Width and depth can only be set on rectangles.
+ */
+export interface RoomGeometry {
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+}
 
 export function getActiveLayout(doc: ProjectDocument): Layout {
   return doc.layouts.find((l) => l.id === doc.activeLayoutId) ?? doc.layouts[0];
@@ -24,27 +35,23 @@ export function mapActiveFurniture(
   return { ...doc, layouts: doc.layouts.map((l) => (l.id === layout.id ? { ...l, furniture: next } : l)) };
 }
 
-/** Offset that keeps an item inside the room (zero when it doesn't fit anyway). */
-export function roomClampOffset(item: FurnitureItem, room: Room): { dx: number; dy: number } {
-  return clampOffsetToRoom(footprintBox(item), room);
-}
-
 /**
  * Applies a geometry change. Items attached to the changed item follow when it moves or
  * rotates; on resize they keep their place so monitors don't slide around on the desk.
+ * With `rooms`, the item is kept on the floor (inside the room it is in).
  */
 export function applyGeometry(
   items: FurnitureItem[],
   id: string,
   patch: Partial<Geometry>,
-  room: Room | null,
+  rooms: readonly Room[] | null,
 ): FurnitureItem[] {
   const current = items.find((i) => i.id === id);
   if (!current) return items;
   let next: FurnitureItem = { ...current, ...patch };
   if (patch.rotation !== undefined) next.rotation = normalizeAngle(patch.rotation);
-  if (room) {
-    const { dx, dy } = roomClampOffset(next, room);
+  if (rooms) {
+    const { dx, dy } = floorClampOffset(worldParts(next), rooms);
     if (dx || dy) next = { ...next, x: next.x + dx, y: next.y + dy };
   }
   if (
@@ -133,6 +140,104 @@ export function nextLayoutName(layouts: readonly Layout[]): string {
     if (!taken.has(name.toLowerCase())) return name;
   }
   return `Layout ${layouts.length + 1}`;
+}
+
+export function mapRoom(doc: ProjectDocument, id: string, fn: (room: Room) => Room): ProjectDocument {
+  const idx = doc.rooms.findIndex((r) => r.id === id);
+  if (idx < 0) return doc;
+  const next = fn(doc.rooms[idx]);
+  if (next === doc.rooms[idx]) return doc;
+  const rooms = doc.rooms.slice();
+  rooms[idx] = next;
+  return { ...doc, rooms };
+}
+
+export function findOpening(rooms: readonly Room[], id: string): { room: Room; opening: Opening } | null {
+  for (const room of rooms) {
+    const opening = room.openings.find((o) => o.id === id);
+    if (opening) return { room, opening };
+  }
+  return null;
+}
+
+/**
+ * Moves a room, or moves and resizes a rectangular one.
+ *
+ * With `carry`, the room moves as a whole and its furniture moves along, in every layout.
+ * Which furniture belongs to the room is decided on `base`, the document when the drag
+ * started, so a room dragged across other furniture doesn't pick it up on the way.
+ *
+ * Without `carry` (resizing), furniture stays where it is, and doors and windows keep their
+ * place on the plan when the left or top wall moves.
+ */
+export function applyRoomGeometry(
+  doc: ProjectDocument,
+  base: ProjectDocument,
+  id: string,
+  patch: Partial<RoomGeometry>,
+  carry: boolean,
+): ProjectDocument {
+  const room = doc.rooms.find((r) => r.id === id);
+  if (!room) return doc;
+  const bounds = roomBounds(room);
+  const x = patch.x ?? bounds.minX;
+  const y = patch.y ?? bounds.minY;
+  const rect = roomRect(room);
+  const next =
+    rect && (patch.width !== undefined || patch.depth !== undefined)
+      ? resizeRect(room, { x, y, width: patch.width ?? rect.width, depth: patch.depth ?? rect.depth })
+      : moveRoomTo(room, x, y);
+  return replaceRoom(doc, base, next, carry);
+}
+
+/**
+ * Puts a changed room into the document. With `carry`, its furniture (decided on `base`, as
+ * in applyRoomGeometry) moves by as much as the room moved since `base`.
+ */
+export function replaceRoom(doc: ProjectDocument, base: ProjectDocument, next: Room, carry: boolean): ProjectDocument {
+  const id = next.id;
+  const room = doc.rooms.find((r) => r.id === id);
+  if (!room || room === next) return doc;
+
+  let layouts = doc.layouts;
+  if (carry) {
+    const baseRoom = base.rooms.find((r) => r.id === id) ?? room;
+    const before = roomBounds(baseRoom);
+    const after = roomBounds(next);
+    const totalX = after.minX - before.minX;
+    const totalY = after.minY - before.minY;
+    layouts = doc.layouts.map((layout) => {
+      const baseItems = (base.layouts.find((l) => l.id === layout.id) ?? layout).furniture;
+      const ids = itemIdsInRoom(baseItems, baseRoom);
+      if (ids.size === 0) return layout;
+      const start = new Map(baseItems.map((i) => [i.id, i]));
+      return {
+        ...layout,
+        furniture: layout.furniture.map((i) => {
+          const from = ids.has(i.id) ? start.get(i.id) : undefined;
+          return from ? { ...i, x: from.x + totalX, y: from.y + totalY } : i;
+        }),
+      };
+    });
+  }
+  return { ...doc, rooms: doc.rooms.map((r) => (r.id === id ? next : r)), layouts };
+}
+
+/** Removes a room and the furniture standing in it, in every layout. The last room is never removed. */
+export function removeRoom(doc: ProjectDocument, id: string): ProjectDocument {
+  const room = doc.rooms.find((r) => r.id === id);
+  if (!room || doc.rooms.length <= 1) return doc;
+  const layouts = doc.layouts.map((layout) => {
+    const ids = itemIdsInRoom(layout.furniture, room);
+    if (ids.size === 0) return layout;
+    return {
+      ...layout,
+      furniture: layout.furniture
+        .filter((i) => !ids.has(i.id))
+        .map((i) => (i.attachedTo && ids.has(i.attachedTo) ? { ...i, attachedTo: null } : i)),
+    };
+  });
+  return { ...doc, rooms: doc.rooms.filter((r) => r.id !== id), layouts };
 }
 
 export function uniqueCopyName(name: string, layouts: readonly Layout[]): string {

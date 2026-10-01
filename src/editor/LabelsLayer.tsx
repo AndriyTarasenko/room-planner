@@ -1,10 +1,10 @@
 import { Group, Text } from 'react-konva';
-import { lSegment } from '../geometry/footprint';
+import { isCircle, lSegment } from '../geometry/footprint';
 import { localToWorld, normalizeAngle } from '../geometry/rect';
 import { type Viewport, worldToView } from '../geometry/viewport';
 import type { FurnitureItem } from '../types';
 import { readableTextColor } from '../utils/color';
-import { formatSize } from '../utils/format';
+import { formatFootprint } from '../utils/format';
 import { measureTextWidth } from '../utils/measureText';
 import { FONT_FAMILY } from './theme';
 
@@ -31,7 +31,7 @@ export function LabelsLayer({ items, vp }: { items: readonly FurnitureItem[]; vp
 
 function ItemLabel({ item, vp, hasItemsOnTop }: { item: FurnitureItem; vp: Viewport; hasItemsOnTop: boolean }) {
   const name = item.name || 'Object';
-  const dims = formatSize(item.width, item.depth);
+  const dims = formatFootprint(item.width, item.depth, isCircle(item));
   const nameFont = `500 ${NAME_SIZE}px ${FONT_FAMILY}`;
   const nameWidth = measureTextWidth(name, nameFont);
 
@@ -53,6 +53,10 @@ function ItemLabel({ item, vp, hasItemsOnTop }: { item: FurnitureItem; vp: Viewp
   }
 
   const lines = across >= LINE_H * 2 + 6 ? 2 : across >= LINE_H + 2 ? 1 : 0;
+  if (item.shape.kind === 'round') {
+    // The text sits in a band across the middle, where the ellipse narrows towards the band's edges.
+    along *= Math.sqrt(Math.max(0, 1 - ((lines * LINE_H) / across) ** 2));
+  }
   if (lines === 0 || along < 22) return null;
 
   // Items carrying monitors get their label near the front edge, clear of what's on top.
