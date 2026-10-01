@@ -70,6 +70,21 @@ describe('undo / redo', () => {
     expect(byName(store, 'Desk').width).toBe(180);
   });
 
+  it('records sizing an L-shape’s arms as one step', () => {
+    const store = createProjectStore(createEmptyProject(400, 300));
+    const id = store.getState().addPreset('corner-sofa')!;
+    const before = itemsOf(store).find((i) => i.id === id)!;
+    const past = store.getState().past.length;
+    store.getState().beginGesture();
+    store.getState().reshapeItem(id, { x: before.x - 10, y: before.y, width: 280, depth: 200, shape: { kind: 'l', segment: 95, returnWidth: 95, returnSide: 'right' } });
+    store.getState().reshapeItem(id, { x: before.x, y: before.y, width: 260, depth: 200, shape: { kind: 'l', segment: 95, returnWidth: 80, returnSide: 'right' } });
+    store.getState().endGesture();
+    expect(itemsOf(store).find((i) => i.id === id)).toMatchObject({ width: 260, shape: { returnWidth: 80 } });
+    expect(store.getState().past).toHaveLength(past + 1);
+    store.getState().undo();
+    expect(itemsOf(store).find((i) => i.id === id)).toEqual(before);
+  });
+
   it('merges consecutive nudges into one step', () => {
     const store = newStore();
     const chair = byName(store, 'Office chair');

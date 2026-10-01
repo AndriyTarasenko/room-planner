@@ -26,7 +26,8 @@ export function ProductGlyph({ product }: { product: Pick<FurnitureProduct, 'wid
   }
   if (product.shape?.kind === 'l') {
     const s = h * (product.shape.segment / product.depth);
-    const points = `${x},${y} ${x + w},${y} ${x + w},${y + h} ${x + w - s},${y + h} ${x + w - s},${y + s} ${x},${y + s}`;
+    const r = w * (product.shape.returnWidth / product.width);
+    const points = `${x},${y} ${x + w},${y} ${x + w},${y + h} ${x + w - r},${y + h} ${x + w - r},${y + s} ${x},${y + s}`;
     return (
       <svg width={17} height={17} aria-hidden="true" className="glyph">
         <polygon points={points} fill={color} stroke={stroke} strokeWidth={1} />

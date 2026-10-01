@@ -3,7 +3,7 @@ import { Arc, Circle, Group, Line, Rect, Text } from 'react-konva';
 import type { LayoutAnalysis } from '../furniture/analysis';
 import { isDesk } from '../furniture/rules';
 import { clearanceZones } from '../geometry/clearance';
-import { lSegment } from '../geometry/footprint';
+import { lArms } from '../geometry/footprint';
 import type { Point } from '../geometry/rect';
 import type { FurnitureItem, Room } from '../types';
 import { withAlpha } from '../utils/color';
@@ -88,7 +88,7 @@ export function DeskGuides({ items, scale }: { items: readonly FurnitureItem[]; 
     <Group listening={false}>
       {desks.map((desk) => {
         // For L-desks, use the main top along the back edge.
-        const depth = desk.shape.kind === 'l' ? lSegment(desk.width, desk.depth, desk.shape.segment) : desk.depth;
+        const depth = desk.shape.kind === 'l' ? lArms(desk.width, desk.depth, desk.shape).main : desk.depth;
         const hw = desk.width / 2;
         const top = -desk.depth / 2;
         const front = top + depth;

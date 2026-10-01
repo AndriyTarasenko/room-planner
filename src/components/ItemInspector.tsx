@@ -6,7 +6,8 @@ import { canHostSurfaceItems, isDesk } from '../furniture/rules';
 import { SHAPE_CHOICES, type ShapeChoice, applyShapeChoice, canBeRound, shapeChoiceOf } from '../furniture/shapeChoice';
 import { CLEARANCE_SIDES } from '../geometry/clearance';
 import { type WallDistances, wallDistances } from '../geometry/distances';
-import { footprintBox, isCircle, lSegment } from '../geometry/footprint';
+import { footprintBox, isCircle, lArms } from '../geometry/footprint';
+import { L_MIN_ARM } from '../geometry/lShape';
 import { isQuarterTurn, normalizeAngle } from '../geometry/rect';
 import { roomForBox } from '../plan/rooms';
 import { roomBounds } from '../plan/shape';
@@ -143,7 +144,7 @@ function ProductSection({ product }: { product: ProductRef }) {
   );
 }
 
-/** What the depth of an L-shape's arms means for each kind. */
+/** What the depth of an L-shape's main part means for each kind. */
 const L_DEPTH_LABEL: Partial<Record<FurnitureType, string>> = { sofa: 'Seat depth', 'kitchen-cabinet': 'Counter depth' };
 
 function SizeSection({ item }: { item: FurnitureItem }) {
@@ -213,19 +214,32 @@ function SizeSection({ item }: { item: FurnitureItem }) {
       )}
 
       {item.shape.kind === 'l' && (
-        <div className="grid-2" style={{ marginTop: 8 }}>
-          <div>
-            <span className="field-label">{lDepthLabel}</span>
-            <NumberField
-              label={`L-shape ${lDepthLabel.toLowerCase()}`}
-              suffix="cm"
-              value={lSegment(item.width, item.depth, item.shape.segment)}
-              min={10}
-              max={Math.max(10, Math.min(item.width, item.depth) - 1)}
-              onCommit={(segment) => item.shape.kind === 'l' && updateItem(item.id, { shape: { ...item.shape, segment } })}
-            />
+        <>
+          <div className="grid-2" style={{ marginTop: 8 }}>
+            <div>
+              <span className="field-label">{lDepthLabel}</span>
+              <NumberField
+                label={`L-shape ${lDepthLabel.toLowerCase()}`}
+                suffix="cm"
+                value={lArms(item.width, item.depth, item.shape).main}
+                min={Math.min(L_MIN_ARM, item.depth - 1)}
+                max={Math.max(1, item.depth - 1)}
+                onCommit={(segment) => item.shape.kind === 'l' && updateItem(item.id, { shape: { ...item.shape, segment } })}
+              />
+            </div>
+            <div>
+              <span className="field-label">Return depth</span>
+              <NumberField
+                label="L-shape return depth"
+                suffix="cm"
+                value={lArms(item.width, item.depth, item.shape).leg}
+                min={Math.min(L_MIN_ARM, item.width - 1)}
+                max={Math.max(1, item.width - 1)}
+                onCommit={(returnWidth) => item.shape.kind === 'l' && updateItem(item.id, { shape: { ...item.shape, returnWidth } })}
+              />
+            </div>
           </div>
-          <div>
+          <div style={{ marginTop: 8 }}>
             <span className="field-label">Return side</span>
             <Segmented<'left' | 'right'>
               label="Return side"
@@ -237,7 +251,7 @@ function SizeSection({ item }: { item: FurnitureItem }) {
               ]}
             />
           </div>
-        </div>
+        </>
       )}
     </Section>
   );

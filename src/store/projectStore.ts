@@ -29,6 +29,7 @@ import type {
   ProjectDocument,
   Room,
   Settings,
+  Shape,
   Wall,
 } from '../types';
 import { createId } from '../utils/id';
@@ -94,6 +95,11 @@ export interface EditorState extends ProjectData {
   setGeometry(id: string, patch: Partial<Geometry>, options?: { coalesceKey?: string; clamp?: boolean }): void;
   /** Resizes from the inspector, keeping the edge nearest a wall in place. `extra` is applied in the same undo step. */
   resizeItem(id: string, size: { width?: number; depth?: number }, extra?: ItemPropsPatch): void;
+  /**
+   * Sets position, size and shape together, for the arm handles of L-shaped items. Like a
+   * transformer resize it doesn't keep the item in its room; `setGeometry(id, {})` does that.
+   */
+  reshapeItem(id: string, next: Pick<Geometry, 'x' | 'y' | 'width' | 'depth'> & { shape: Shape }): void;
   rotateBy(id: string, delta: number): void;
   nudge(id: string, dx: number, dy: number): void;
   duplicateItem(id: string): void;
@@ -369,7 +375,11 @@ export function createProjectStore(initial: ProjectData) {
         const center = anchoredResizeCenter(item, width, depth, roomForBox(footprintBox(item), get().rooms).corners);
         let shape = extra.shape ?? item.shape;
         if (shape.kind === 'l') {
-          shape = { ...shape, segment: Math.min(shape.segment, Math.max(1, Math.min(width, depth) - 1)) };
+          shape = {
+            ...shape,
+            segment: Math.min(shape.segment, Math.max(1, depth - 1)),
+            returnWidth: Math.min(shape.returnWidth, Math.max(1, width - 1)),
+          };
         }
         commit((doc) =>
           mapActiveFurniture(doc, (list) =>
@@ -382,6 +392,18 @@ export function createProjectStore(initial: ProjectData) {
           ),
         );
       },
+
+      reshapeItem: (id, { shape, ...geometry }) =>
+        commit((doc) =>
+          mapActiveFurniture(doc, (list) =>
+            applyGeometry(
+              list.map((i) => (i.id === id ? { ...i, shape } : i)),
+              id,
+              geometry,
+              null,
+            ),
+          ),
+        ),
 
       rotateBy: (id, delta) => {
         const item = findItem(id);

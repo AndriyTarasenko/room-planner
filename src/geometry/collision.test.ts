@@ -51,7 +51,7 @@ describe('rectangle collision detection', () => {
       width: 160,
       depth: 120,
       rotation: 0,
-      shape: { kind: 'l' as const, segment: 60, returnSide: 'right' as const },
+      shape: { kind: 'l' as const, segment: 60, returnWidth: 60, returnSide: 'right' as const },
     };
     // The empty inner corner of the L (bottom-left) is free space.
     expect(footprintsOverlap(l, item('box', 30, 95, 40, 40))).toBe(false);

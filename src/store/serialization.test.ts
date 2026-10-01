@@ -314,6 +314,35 @@ describe('stored projects', () => {
   });
 });
 
+describe('L-shaped furniture in project files', () => {
+  const sofa = () => productToItem(findBuiltInProduct('generic:sofa-chaise')!, { x: 150, y: 120 });
+
+  it('round-trips arms of different depths', () => {
+    const project = createSampleProject();
+    const item = { ...sofa(), shape: { kind: 'l' as const, segment: 95, returnWidth: 80, returnSide: 'left' as const } };
+    project.layouts[0].furniture.push(item);
+    expect(parseProjectJson(serializeProject(project)).layouts[0].furniture.at(-1)).toEqual(item);
+  });
+
+  it('gives files from before the arms were sized separately a return as deep as the main part', () => {
+    const project = createSampleProject();
+    project.layouts[0].furniture.push({ ...sofa(), shape: { kind: 'l', segment: 95, returnSide: 'right' } as never });
+    const restored = parseProjectJson(serializeProject(project)).layouts[0].furniture.at(-1)!;
+    expect(restored.shape).toEqual({ kind: 'l', segment: 95, returnWidth: 95, returnSide: 'right' });
+  });
+
+  it('keeps the return of saved products, defaulting it to the main depth', () => {
+    const raw = { id: 'custom:l', manufacturer: 'Custom', productName: 'Desk', category: 'desk', kind: 'l-desk', width: 160, depth: 120, height: 75 };
+    expect(parseProduct({ ...raw, shape: { kind: 'l', segment: 70, returnWidth: 50, returnSide: 'left' } }, 'user')?.shape).toEqual({
+      kind: 'l',
+      segment: 70,
+      returnWidth: 50,
+      returnSide: 'left',
+    });
+    expect(parseProduct({ ...raw, shape: { kind: 'l', segment: 70 } }, 'user')?.shape).toEqual({ kind: 'l', segment: 70, returnWidth: 70, returnSide: 'right' });
+  });
+});
+
 describe('round furniture in project files', () => {
   it('round-trips round and oval items and the new kinds', () => {
     const project = createSampleProject();

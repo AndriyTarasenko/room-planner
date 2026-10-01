@@ -4,7 +4,7 @@ import { applyShapeChoice, canBeRound, shapeChoiceOf } from './shapeChoice';
 
 const RECT: Shape = { kind: 'rect' };
 const ROUND: Shape = { kind: 'round' };
-const L: Shape = { kind: 'l', segment: 60, returnSide: 'right' };
+const L: Shape = { kind: 'l', segment: 60, returnWidth: 60, returnSide: 'right' };
 
 describe('shape choice', () => {
   it('names circles, ovals and rectangles', () => {

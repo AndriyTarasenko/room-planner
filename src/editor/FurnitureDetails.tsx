@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Circle, Ellipse, Group, Line, Rect } from 'react-konva';
-import { lSegment } from '../geometry/footprint';
+import { lArms } from '../geometry/footprint';
 import type { FurnitureItem } from '../types';
 import { shade, withAlpha } from '../utils/color';
 
@@ -18,17 +18,17 @@ function dividers(length: number, module: number): number[] {
 
 /**
  * Details of L-shaped items, drawn for a return on the right (the caller mirrors them for a
- * left return). The main part runs along the back with depth `s`; the return leg is `s` wide.
+ * left return). The main part runs along the back with depth `s`; the return leg is `r` wide.
  */
-function lShapedDetails(item: FurnitureItem, s: number, { common, faint, color }: DetailStyles): ReactNode {
+function lShapedDetails(item: FurnitureItem, s: number, r: number, { common, faint, color }: DetailStyles): ReactNode {
   const hw = item.width / 2;
   const hd = item.depth / 2;
-  const legX = hw - s;
+  const legX = hw - r;
   switch (item.type) {
     case 'sofa': {
       // Backrest along the back, an arm at the far end of the main part and along the outer side of the return.
       const back = Math.min(s * 0.24, 22);
-      const arm = Math.min(s * 0.2, 18);
+      const arm = Math.min(Math.min(s, r) * 0.2, 18);
       const fill = shade(color, 0.08);
       return (
         <>
@@ -141,7 +141,8 @@ export function FurnitureDetails({ item }: { item: FurnitureItem }) {
   if (w < 8 || d < 8) return null;
 
   if (item.shape.kind === 'l') {
-    const content = lShapedDetails(item, lSegment(w, d, item.shape.segment), { common, faint, color: item.color });
+    const { main, leg } = lArms(w, d, item.shape);
+    const content = lShapedDetails(item, main, leg, { common, faint, color: item.color });
     return (
       content && (
         <Group listening={false} scaleX={item.shape.returnSide === 'left' ? -1 : 1}>

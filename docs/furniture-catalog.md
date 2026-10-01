@@ -39,7 +39,7 @@ The planner (`store/`, `editor/`, `geometry/`) only knows `FurnitureProduct` and
 | `kind` | Planner behavior and top-down drawing (`desk`, `sit-stand-desk`, `bed`, `wardrobe`, `kitchen-cabinet`, `sink`, `toilet`, `tv`, …). Desks host monitors, TV benches host TVs and kitchen cabinets host microwaves and wall cabinets; office chairs are placed in front of desks. |
 | `width`, `depth`, `height` | Width along the front, depth front to back, overall height (lowest setting for adjustable products). |
 | `heightMax` | Highest setting of height-adjustable products. |
-| `shape` | Optional outline: `{ "kind": "l", … }` for L-shaped sofas, desks and counters, `{ "kind": "round" }` for round and oval tables, poufs and plants (a circle when width equals depth). Rectangular when absent. |
+| `shape` | Optional outline: `{ "kind": "l", "segment": 60, "returnWidth": 50, "returnSide": "right" }` for L-shaped sofas, desks and counters (`segment` is the depth of the main part along the back, `returnWidth` the width of the return leg, which defaults to `segment`), `{ "kind": "round" }` for round and oval tables, poufs and plants (a circle when width equals depth). Rectangular when absent. |
 | `defaultColor` | Optional fill color of placed items, instead of the category color (generic plants are green). |
 | `articleNumber`, `productUrl`, `imageUrl` | As published by the manufacturer. URLs must be `https`. |
 | `source`, `sourceLastVerified` | Where the dimensions come from, and the date they were checked. |

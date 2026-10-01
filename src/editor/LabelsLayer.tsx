@@ -1,5 +1,5 @@
 import { Group, Text } from 'react-konva';
-import { isCircle, lSegment } from '../geometry/footprint';
+import { isCircle, lArms } from '../geometry/footprint';
 import { localToWorld, normalizeAngle } from '../geometry/rect';
 import { type Viewport, worldToView } from '../geometry/viewport';
 import type { FurnitureItem } from '../types';
@@ -40,7 +40,7 @@ function ItemLabel({ item, vp, hasItemsOnTop }: { item: FurnitureItem; vp: Viewp
   let areaD = item.depth;
   let localCenter = { x: 0, y: 0 };
   if (item.shape.kind === 'l') {
-    areaD = lSegment(item.width, item.depth, item.shape.segment);
+    areaD = lArms(item.width, item.depth, item.shape).main;
     localCenter = { x: 0, y: -item.depth / 2 + areaD / 2 };
   }
 

@@ -73,7 +73,7 @@ describe('footprints', () => {
   });
 
   it('builds L-shapes from two rectangles covering the outline', () => {
-    const l = { ...rect, width: 160, depth: 120, shape: { kind: 'l' as const, segment: 60, returnSide: 'right' as const } };
+    const l = { ...rect, width: 160, depth: 120, shape: { kind: 'l' as const, segment: 60, returnWidth: 60, returnSide: 'right' as const } };
     const parts = localParts(l);
     expect(parts).toHaveLength(2);
     const area = parts.reduce((s, p) => s + polygonArea(p), 0);

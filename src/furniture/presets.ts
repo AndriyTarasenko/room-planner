@@ -131,7 +131,7 @@ export const PRESETS: readonly FurniturePreset[] = [
     depth: 120,
     height: 75,
     placement: 'floor',
-    shape: { kind: 'l', segment: 60, returnSide: 'right' },
+    shape: { kind: 'l', segment: 60, returnWidth: 60, returnSide: 'right' },
     clearance: { enabled: false, front: 90 },
   },
   {
@@ -218,7 +218,7 @@ export const PRESETS: readonly FurniturePreset[] = [
     depth: 160,
     height: 85,
     placement: 'floor',
-    shape: { kind: 'l', segment: 95, returnSide: 'right' },
+    shape: { kind: 'l', segment: 95, returnWidth: 95, returnSide: 'right' },
     clearance: { enabled: false, front: 60 },
   },
   {
@@ -231,7 +231,7 @@ export const PRESETS: readonly FurniturePreset[] = [
     depth: 200,
     height: 85,
     placement: 'floor',
-    shape: { kind: 'l', segment: 95, returnSide: 'right' },
+    shape: { kind: 'l', segment: 95, returnWidth: 95, returnSide: 'right' },
     clearance: { enabled: false, front: 60 },
   },
   ...BED_WIDTHS.map(bed),
@@ -532,7 +532,7 @@ export const PRESETS: readonly FurniturePreset[] = [
     depth: 180,
     height: COUNTER.height,
     placement: 'floor',
-    shape: { kind: 'l', segment: COUNTER.depth, returnSide: 'right' },
+    shape: { kind: 'l', segment: COUNTER.depth, returnWidth: COUNTER.depth, returnSide: 'right' },
     clearance: KITCHEN_AISLE,
   },
   {

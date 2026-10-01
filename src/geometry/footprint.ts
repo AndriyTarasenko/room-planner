@@ -15,9 +15,17 @@ export interface LocalRect {
 
 const RECT: Shape = { kind: 'rect' };
 
-/** Clamps the L-shape segment depth to something that still forms an L. */
-export function lSegment(width: number, depth: number, segment: number): number {
-  return Math.max(1, Math.min(segment, depth - 1, width - 1));
+export type LShape = Extract<Shape, { kind: 'l' }>;
+
+/**
+ * Depth of the main part and width of the return leg of an L-shaped footprint, clamped to
+ * something that still forms an L: each arm leaves at least 1 cm of the other one free.
+ */
+export function lArms(width: number, depth: number, shape: LShape): { main: number; leg: number } {
+  return {
+    main: Math.max(1, Math.min(shape.segment, depth - 1)),
+    leg: Math.max(1, Math.min(shape.returnWidth, width - 1)),
+  };
 }
 
 /**
@@ -45,10 +53,10 @@ export function localParts(f: Pick<Footprint, 'width' | 'depth' | 'shape'>): Pol
   const hd = f.depth / 2;
   if (shape.kind === 'round') return [ellipsePolygon(f.width, f.depth)];
   if (shape.kind === 'l') {
-    const s = lSegment(f.width, f.depth, shape.segment);
+    const { main: s, leg: r } = lArms(f.width, f.depth, shape);
     const main: LocalRect = { x: -hw, y: -hd, width: f.width, depth: s };
-    const legX = shape.returnSide === 'right' ? hw - s : -hw;
-    const leg: LocalRect = { x: legX, y: -hd + s, width: s, depth: f.depth - s };
+    const legX = shape.returnSide === 'right' ? hw - r : -hw;
+    const leg: LocalRect = { x: legX, y: -hd + s, width: r, depth: f.depth - s };
     return [localRectPolygon(main), localRectPolygon(leg)];
   }
   return [localRectPolygon({ x: -hw, y: -hd, width: f.width, depth: f.depth })];
@@ -61,14 +69,14 @@ export function localOutline(f: Pick<Footprint, 'width' | 'depth' | 'shape'>): P
   const hd = f.depth / 2;
   if (shape.kind === 'round') return ellipsePolygon(f.width, f.depth);
   if (shape.kind === 'l') {
-    const s = lSegment(f.width, f.depth, shape.segment);
+    const { main: s, leg: r } = lArms(f.width, f.depth, shape);
     if (shape.returnSide === 'right') {
       return [
         { x: -hw, y: -hd },
         { x: hw, y: -hd },
         { x: hw, y: hd },
-        { x: hw - s, y: hd },
-        { x: hw - s, y: -hd + s },
+        { x: hw - r, y: hd },
+        { x: hw - r, y: -hd + s },
         { x: -hw, y: -hd + s },
       ];
     }
@@ -76,8 +84,8 @@ export function localOutline(f: Pick<Footprint, 'width' | 'depth' | 'shape'>): P
       { x: -hw, y: -hd },
       { x: hw, y: -hd },
       { x: hw, y: -hd + s },
-      { x: -hw + s, y: -hd + s },
-      { x: -hw + s, y: hd },
+      { x: -hw + r, y: -hd + s },
+      { x: -hw + r, y: hd },
       { x: -hw, y: hd },
     ];
   }

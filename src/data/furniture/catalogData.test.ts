@@ -45,12 +45,13 @@ describe('built-in catalog data', () => {
     expect(presetForType('tv').placement).toBe('surface');
   });
 
-  it('gives L-shaped products a segment that still forms an L', () => {
+  it('gives L-shaped products arms that still form an L', () => {
     const lShaped = GENERIC_PRODUCTS.filter((p) => p.shape?.kind === 'l');
     expect(lShaped.map((p) => p.id)).toEqual(['generic:l-desk', 'generic:sofa-chaise', 'generic:corner-sofa', 'generic:kitchen-counter-l']);
     for (const p of lShaped) {
       if (p.shape?.kind !== 'l') continue;
-      expect(p.shape.segment).toBeLessThan(Math.min(p.width, p.depth));
+      expect(p.shape.segment).toBeLessThan(p.depth);
+      expect(p.shape.returnWidth).toBeLessThan(p.width);
     }
   });
 });

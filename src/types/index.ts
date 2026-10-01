@@ -88,8 +88,11 @@ export interface Clearance {
 
 export type Shape =
   | { kind: 'rect' }
-  /** L-shaped footprint: a main top of depth `segment` along the back edge plus a return leg. */
-  | { kind: 'l'; segment: number; returnSide: 'left' | 'right' }
+  /**
+   * L-shaped footprint: a main part of depth `segment` along the back edge plus a return leg
+   * `returnWidth` wide down one side. The two arms are sized separately.
+   */
+  | { kind: 'l'; segment: number; returnWidth: number; returnSide: 'left' | 'right' }
   /** Round or oval: the ellipse that fills width × depth, a circle when both are equal. */
   | { kind: 'round' };
 

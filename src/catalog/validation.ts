@@ -44,9 +44,12 @@ function parseShape(raw: unknown, width: number, depth: number): Shape | undefin
   if (raw.kind === 'rect') return { kind: 'rect' };
   if (raw.kind === 'round') return { kind: 'round' };
   if (raw.kind !== 'l') return undefined;
+  // Files from before the arms were sized separately have one `segment` for both.
+  const segment = num(raw.segment, Math.min(60, depth / 2), 1, Math.max(1, depth - 1));
   return {
     kind: 'l',
-    segment: num(raw.segment, Math.min(60, depth / 2), 1, Math.max(1, Math.min(width, depth) - 1)),
+    segment,
+    returnWidth: num(raw.returnWidth, Math.min(segment, width - 1), 1, Math.max(1, width - 1)),
     returnSide: oneOf(raw.returnSide, ['left', 'right'] as const, 'right'),
   };
 }

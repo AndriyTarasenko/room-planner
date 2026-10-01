@@ -11,7 +11,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 - **Walls**: each wall has its own thickness (12 cm by default, drawn outside the interior so interior sizes stay exact), or no wall at all. Walls meet in clean mitered corners at any angle. Switch off the outer wall of a balcony for its open side, or the walls between two rooms to join them into one open-plan space. Furniture can span such a seam.
 - **Doors, windows and passages**: click **Door**, **Window** or **Passage** to add one to the current room, or drag it onto a wall, slanted walls included. Drag it along the wall and around corners, or set its width and distance from either corner in the inspector. Doors have a hinge side and open into the room or outward. A door between two rooms cuts through the wall they share.
 - **Furniture catalog**: generic furniture in typical sizes, 69 real IKEA products with verified dimensions, optional IKEA online search, and your own saved products. Search, filter by manufacturer and category, keep favorites, and find the last 8 items you used. Categories fold away with a click on their title (or all at once), and this browser remembers which ones are folded. Click an item to add it, or drag it onto the canvas. See [Furniture catalog](#furniture-catalog).
-- **Editing**: drag, rotate (handle, `R`, or 0/90/180/270 buttons), resize with handles or exact inspector fields. Numeric fields accept arithmetic such as `180+20`.
+- **Editing**: drag, rotate (handle, `R`, or 0/90/180/270 buttons), resize with handles or exact inspector fields. Numeric fields accept arithmetic such as `180+20`. L-shaped sofas, desks and counters have a handle on each arm: drag an arm's end to change its length, or its inner edge to change its depth, so both parts of the L are sized separately.
 - **Round furniture**: round and oval tables, poufs, stools and plants. A circle is sized by its diameter (Ø) and stays a circle when you drag either handle. Tables, poufs, plants and plain objects can be switched between **Rectangle**, **Round** and **Oval** in the inspector. Collisions, clearance checks and "inside the room" use the round outline, so a chair in the corner of a round table's bounding box isn't a collision.
 - **Desk shortcuts**: one-click desk widths (140/160/180/200) that keep the desk against its wall, monitor and TV size switching, and optional desk guides (monitor area, reach zone, chair spot).
 - **Monitors and other items on furniture**: dropping a monitor on a desk attaches it. It then moves and rotates with the desk and is not counted as a collision. Adding a second monitor centers the pair on the desk. A new TV goes onto a TV bench, and a microwave or kitchen wall cabinet onto a kitchen counter.
@@ -243,7 +243,7 @@ src/
   data/furniture/  Built-in catalog data: generic.ts (from presets), ikea.ts (curated)
   store/        Zustand store with undo/redo, pure document operations,
                 persistence (localStorage) and import/export validation
-  editor/       react-konva canvas: floors, walls, doors and windows, room handles, the
+  editor/       react-konva canvas: floors, walls, doors and windows, room and L-shape handles, the
                 "Draw walls" tool, the Ruler, furniture nodes, labels, measurements, clearance/collision
                 overlays, drag logic, transient UI state
   components/   Top bar, layout tabs, library, inspector, dialogs, UI primitives
@@ -317,7 +317,7 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
           "placement": "floor",               // "floor" | "surface"
           "ignoreCollisions": false,
           "clearance": { "enabled": false, "front": 90, "back": 0, "left": 0, "right": 0 },
-          "shape": { "kind": "rect" },        // or { "kind": "l", "segment": 60, "returnSide": "right" }, or { "kind": "round" }
+          "shape": { "kind": "rect" },        // or { "kind": "l", "segment": 60, "returnWidth": 50, "returnSide": "right" }, or { "kind": "round" }
           "attachedTo": null,                 // id of the desk a monitor stands on
           "showDeskGuides": false
         },

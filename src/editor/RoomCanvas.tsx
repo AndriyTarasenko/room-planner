@@ -18,6 +18,7 @@ import {
 } from '../store';
 import { DraftCapture, DraftLabels, DraftOutline } from './DraftLayer';
 import { FurnitureNode } from './FurnitureNode';
+import { LShapeHandles } from './LShapeHandles';
 import { LabelsLayer } from './LabelsLayer';
 import { OpeningMeasurements, RoomDimensions, SelectionMeasurements, SnapGuides } from './MeasurementsLayer';
 import { OpeningNode } from './OpeningNode';
@@ -63,6 +64,8 @@ export function RoomCanvas() {
   );
   const analysis = analyzeLayoutCached(items, rooms);
   const selected = selectedId ? items.find((i) => i.id === selectedId) : undefined;
+  // L-shaped items are sized by their arms' own handles instead of the transformer's box.
+  const selectedL = selected?.shape.kind === 'l' ? { ...selected, shape: selected.shape } : null;
   // Room sizes are shown for the selected room, and always when the plan has a single room.
   const dimensionRoom = selectedRoom ?? (!selectedOpening && rooms.length === 1 ? rooms[0] : null);
 
@@ -214,12 +217,13 @@ export function RoomCanvas() {
               <DeskGuides items={items} scale={vp.scale} />
               <ConflictRegions analysis={analysis} />
               {selectedRoom && !drawing && <RoomHandles room={selectedRoom} scale={vp.scale} />}
+              {selectedL && !drawing && <LShapeHandles item={selectedL} scale={vp.scale} />}
               {drawing && <DraftOutline scale={vp.scale} />}
             </Group>
             <Transformer
               ref={transformerRef}
               rotateEnabled
-              enabledAnchors={RESIZE_ANCHORS}
+              enabledAnchors={selectedL ? [] : RESIZE_ANCHORS}
               rotationSnaps={ROTATION_SNAPS}
               rotationSnapTolerance={4}
               rotateAnchorOffset={22}

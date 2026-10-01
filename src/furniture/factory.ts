@@ -1,5 +1,5 @@
 import { findCollisions } from '../geometry/collision';
-import { frameOf, worldParts } from '../geometry/footprint';
+import { frameOf, lArms, worldParts } from '../geometry/footprint';
 import { clampShapeIntoPolygon, polygonLabelPoint } from '../geometry/bounds';
 import { type Point, localToWorld, normalizeAngle, worldToLocal } from '../geometry/rect';
 import type { Category, Clearance, FurnitureItem, Placement, Shape } from '../types';
@@ -125,7 +125,7 @@ export function placeOnHost(
 
 /** Where a chair goes for a desk: centered in front of the desk top, facing it, 10 cm away. */
 export function chairSpotForDesk(chair: FurnitureItem, desk: FurnitureItem): Point & { rotation: number } {
-  const top = desk.shape.kind === 'l' ? -desk.depth / 2 + desk.shape.segment : desk.depth / 2;
+  const top = desk.shape.kind === 'l' ? -desk.depth / 2 + lArms(desk.width, desk.depth, desk.shape).main : desk.depth / 2;
   const x = desk.shape.kind === 'l' ? (desk.shape.returnSide === 'right' ? -chair.width / 2 : chair.width / 2) : 0;
   const p = localToWorld({ x, y: top + 10 + chair.depth / 2 }, frameOf(desk));
   return { ...p, rotation: normalizeAngle(desk.rotation + 180) };
