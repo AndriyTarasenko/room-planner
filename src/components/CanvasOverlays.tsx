@@ -3,7 +3,7 @@ import { CircleCheck, Grid3x3, Lock, Maximize, Minus, Plus, RulerDimensionLine, 
 import { useUi } from '../editor/uiStore';
 import { analyzeLayoutCached } from '../furniture/analysis';
 import { clampZoom } from '../geometry/viewport';
-import { projectStore, selectItems, useEditor } from '../store';
+import { projectStore, selectItems, selectSelectedItem, useEditor } from '../store';
 import { GRID_SIZES, type GridSize, type Settings } from '../types';
 import { formatArea, formatPercent } from '../utils/format';
 
@@ -166,6 +166,7 @@ export function CanvasHint() {
   const measuring = useUi((s) => s.tool === 'measure');
   const placing = useUi((s) => s.ruler.phase === 'placing');
   const roomSelected = useEditor((s) => s.rooms.some((r) => r.id === s.selectedId));
+  const itemSelected = useEditor((s) => selectSelectedItem(s) !== null);
   const text = drawing
     ? 'Click to place corners · click the first corner or press Enter to finish · Backspace undoes a corner · Esc stops'
     : measuring
@@ -174,6 +175,8 @@ export function CanvasHint() {
         : 'Drag between two points, or click both ends · Alt: no snapping · middle-drag pans · Esc stops'
       : roomSelected
       ? 'Drag a wall or corner to reshape · double-click a wall to add a corner, a corner to remove it'
+      : itemSelected
+      ? 'Drag the round handle to rotate · Shift: 15° steps · Alt: no snapping · [ ] turn by 15°'
       : 'Click a room to edit it · scroll to zoom · drag the floor to pan';
   return <div className="hint">{text}</div>;
 }

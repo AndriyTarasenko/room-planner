@@ -14,6 +14,7 @@ const SHORTCUTS: [string[], string][] = [
   [['Ctrl', 'Z'], 'Undo'],
   [['Ctrl', 'Y'], 'Redo'],
   [['R'], 'Rotate 90° (Shift: back)'],
+  [['[', ']'], 'Rotate 15° (Shift: 1°)'],
   [['Ctrl', 'D'], 'Duplicate'],
   [['Del'], 'Delete'],
   [['←', '→', '↑', '↓'], 'Nudge 1 cm (Shift: 10)'],

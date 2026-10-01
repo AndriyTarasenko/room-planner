@@ -54,6 +54,8 @@ interface UiState {
   liveBox: Box | null;
   guides: SnapGuide[];
   draggingId: string | null;
+  /** The item being turned with the rotate handle; its angle is shown next to the handle. */
+  rotatingId: string | null;
   hoveredId: string | null;
   tool: EditorTool;
   draft: Draft;
@@ -68,6 +70,7 @@ interface UiState {
   setLiveBox(box: Box): void;
   setGuides(guides: SnapGuide[]): void;
   setDragging(id: string | null): void;
+  setRotating(id: string | null): void;
   setHovered(id: string | null): void;
   /** Switches tools; any unfinished drawing and the measurement are discarded. */
   setTool(tool: EditorTool): void;
@@ -83,6 +86,7 @@ export const useUi = create<UiState>()((set) => ({
   liveBox: null,
   guides: [],
   draggingId: null,
+  rotatingId: null,
   hoveredId: null,
   tool: 'select',
   draft: EMPTY_DRAFT,
@@ -95,6 +99,7 @@ export const useUi = create<UiState>()((set) => ({
   setLiveBox: (liveBox) => set({ liveBox }),
   setGuides: (guides) => set((s) => (s.guides.length === 0 && guides.length === 0 ? s : { guides })),
   setDragging: (draggingId) => set({ draggingId }),
+  setRotating: (rotatingId) => set({ rotatingId }),
   setHovered: (hoveredId) => set({ hoveredId }),
   setTool: (tool) => set({ tool, draft: EMPTY_DRAFT, ruler: EMPTY_RULER, guides: [] }),
   updateDraft: (patch) => set((s) => ({ draft: { ...s.draft, ...patch } })),

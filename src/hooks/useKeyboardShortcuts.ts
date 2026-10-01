@@ -3,6 +3,7 @@ import { deleteRoom } from '../components/projectActions';
 import { commitDraft, isDrawing, stopDrawing, typeLength, undoCorner } from '../editor/drawTool';
 import { clearMeasurement, isMeasuring, stopMeasuring, toggleMeasuring } from '../editor/rulerTool';
 import { useUi } from '../editor/uiStore';
+import { ROTATION_STEP, stepRotation } from '../geometry/rotation';
 import { roomBounds } from '../plan/shape';
 import { wallFrame } from '../plan/walls';
 import { projectStore, selectSelectedItem, selectSelectedOpening, selectSelectedOpeningRoom, selectSelectedRoom } from '../store';
@@ -55,6 +56,9 @@ function handleMeasuringKey(key: string): boolean {
   return (key === 'delete' || key === 'backspace') && clearMeasurement();
 }
 
+/** [ and ] by key position, so they work on any keyboard layout (and with Shift held). */
+const ROTATE_KEYS: Record<string, 1 | -1> = { BracketLeft: -1, BracketRight: 1 };
+
 const ARROWS: Record<string, [number, number]> = {
   arrowleft: [-1, 0],
   arrowright: [1, 0],
@@ -63,7 +67,8 @@ const ARROWS: Record<string, [number, number]> = {
 };
 
 /**
- * Global editor shortcuts: undo/redo, delete, escape, rotate, duplicate, arrow nudging and M for the Ruler.
+ * Global editor shortcuts: undo/redo, delete, escape, rotate (R by 90°, [ and ] by 15°, with Shift by 1°),
+ * duplicate, arrow nudging and M for the Ruler.
  * Delete and the arrows also work on a selected room (which takes its furniture along) and
  * on a door or window (which slides along its wall). Ignored while typing in a field or when
  * a dialog is open.
@@ -125,6 +130,12 @@ export function useKeyboardShortcuts() {
         if (!item) return;
         e.preventDefault();
         s.rotateBy(item.id, e.shiftKey ? -90 : 90);
+      } else if (e.code in ROTATE_KEYS) {
+        if (!item) return;
+        e.preventDefault();
+        const rotation = stepRotation(item.rotation, ROTATE_KEYS[e.code], e.shiftKey ? 1 : ROTATION_STEP);
+        // Quick presses in a row are one undo step.
+        s.setGeometry(item.id, { rotation }, { coalesceKey: `rotate:${item.id}` });
       } else if (key in ARROWS) {
         const [dx, dy] = ARROWS[key];
         const step = e.shiftKey ? 10 : 1;

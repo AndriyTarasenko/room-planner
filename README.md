@@ -11,7 +11,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 - **Walls**: each wall has its own thickness (12 cm by default, drawn outside the interior so interior sizes stay exact), or no wall at all. Walls meet in clean mitered corners at any angle. Switch off the outer wall of a balcony for its open side, or the walls between two rooms to join them into one open-plan space. Furniture can span such a seam.
 - **Doors, windows and passages**: click **Door**, **Window** or **Passage** to add one to the current room, or drag it onto a wall, slanted walls included. Drag it along the wall and around corners, or set its width and distance from either corner in the inspector. Doors have a hinge side and open into the room or outward. A door between two rooms cuts through the wall they share.
 - **Furniture catalog**: generic furniture in typical sizes, 69 real IKEA products with verified dimensions, optional IKEA online search, and your own saved products. Search, filter by manufacturer and category, keep favorites, and find the last 8 items you used. Categories fold away with a click on their title (or all at once), and this browser remembers which ones are folded. Click an item to add it, or drag it onto the canvas. See [Furniture catalog](#furniture-catalog).
-- **Editing**: drag, rotate (handle, `R`, or 0/90/180/270 buttons), resize with handles or exact inspector fields. Numeric fields accept arithmetic such as `180+20`. L-shaped sofas, desks and counters have a handle on each arm: drag an arm's end to change its length, or its inner edge to change its depth, so both parts of the L are sized separately.
+- **Editing**: drag, rotate, resize with handles or exact inspector fields. The round handle above the selection turns an object to any angle in whole degrees and shows the angle while you turn. It sticks to the diagonals and to the walls of the object's room, so furniture lines up with a slanted wall. Hold `Shift` for 15° steps or `Alt` to turn without sticking. `R` turns by 90°, `[` and `]` by 15°, and the inspector has 0/90/180/270 buttons and an angle field. Numeric fields accept arithmetic such as `180+20`. L-shaped sofas, desks and counters have a handle on each arm: drag an arm's end to change its length, or its inner edge to change its depth, so both parts of the L are sized separately.
 - **Round furniture**: round and oval tables, poufs, stools and plants. A circle is sized by its diameter (Ø) and stays a circle when you drag either handle. Tables, poufs, plants and plain objects can be switched between **Rectangle**, **Round** and **Oval** in the inspector. Collisions, clearance checks and "inside the room" use the round outline, so a chair in the corner of a round table's bounding box isn't a collision.
 - **Desk shortcuts**: one-click desk widths (140/160/180/200) that keep the desk against its wall, monitor and TV size switching, and optional desk guides (monitor area, reach zone, chair spot).
 - **Monitors and other items on furniture**: dropping a monitor on a desk attaches it. It then moves and rotates with the desk and is not counted as a collision. Adding a second monitor centers the pair on the desk. A new TV goes onto a TV bench, and a microwave or kitchen wall cabinet onto a kitchen counter.
@@ -35,10 +35,12 @@ Everything runs in the browser. There is no backend and no account; the project 
 | `Delete` / `Backspace` | Delete the selected object, door, window or room (a room takes its furniture with it) |
 | `Escape` | Deselect |
 | `R` / `Shift+R` | Rotate 90° clockwise / counter-clockwise |
+| `]` / `[` (`Shift` for 1°) | Rotate 15° clockwise / counter-clockwise. An object at an odd angle turns to the next multiple of 15° first |
 | `Ctrl+D` | Duplicate |
 | `M` | Ruler: measure between two points (`M` again to stop) |
 | Arrow keys (`Shift` for 10 cm) | Nudge 1 cm. A room moves with its furniture; a door or window slides along its wall |
-| `Alt` while dragging | No snapping |
+| `Alt` while dragging | No snapping (on the rotate handle: no sticking to diagonals and walls) |
+| `Shift` on the rotate handle | Turn in 15° steps |
 
 While drawing walls:
 
@@ -229,8 +231,8 @@ All project sites of one GitHub account share the origin `https://<username>.git
 src/
   types/        Domain model (Room, Wall, Opening, Layout, FurnitureItem, Settings, file format)
   geometry/     Pure TypeScript: rotated rectangles, SAT collisions, polygon clipping and
-                containment, snapping, wall/neighbor distances, bounds, viewport transforms,
-                free area
+                containment, snapping, rotation snapping, wall/neighbor distances, bounds,
+                viewport transforms, free area
   plan/         Pure TypeScript floor plan: mitered wall shapes, which room a point or item is
                 in, "on the floor" checks across open-plan rooms, door/window cuts and swings,
                 room docking and snapping, outline editing (shape.ts), wall drawing
@@ -243,7 +245,8 @@ src/
   data/furniture/  Built-in catalog data: generic.ts (from presets), ikea.ts (curated)
   store/        Zustand store with undo/redo, pure document operations,
                 persistence (localStorage) and import/export validation
-  editor/       react-konva canvas: floors, walls, doors and windows, room and L-shape handles, the
+  editor/       react-konva canvas: floors, walls, doors and windows, the selection box with its rotate
+                handle, room and L-shape handles, the
                 "Draw walls" tool, the Ruler, furniture nodes, labels, measurements, clearance/collision
                 overlays, drag logic, transient UI state
   components/   Top bar, layout tabs, library, inspector, dialogs, UI primitives
@@ -345,7 +348,7 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
 ## Known limitations
 
 - Walls are straight. A curved wall (a round bay window) can be approximated with a few short walls. Free-standing walls, columns, radiators, sockets and window sill heights aren't modeled.
-- Furniture snaps only to horizontal and vertical walls, and the distance lines are measured horizontally and vertically. Next to a slanted wall, rotate furniture to match it by hand (the rotation field takes any angle); "inside the room" and collision checks use the true shapes.
+- Furniture snaps only to horizontal and vertical walls, and the distance lines are measured horizontally and vertically. Next to a slanted wall, turn furniture with the rotate handle, which sticks to the wall's angle, then move it up to the wall by hand. "Inside the room" and collision checks use the true shapes.
 - Walls belong to rooms, so a wall between two rooms is drawn by both. Give both sides the same thickness, or let snapping keep the gap at the thicker one, or the drawing gets uneven. A door cuts through a neighbor's wall only where the two walls run along the same line.
 - Overlapping rooms aren't flagged. Snapping keeps neighbors apart, but a room placed on top of another with `Alt` or the X/Y fields is allowed.
 - Doors swing 90° with a single leaf. Double, sliding and pocket doors can be approximated with a passage.
@@ -368,7 +371,7 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
 The MVP deliberately leaves these out. This is where they would fit:
 
 - **3D view (React Three Fiber)**: every item already has `height`, and `geometry/footprint.ts` gives the footprint polygons. A `src/viewer3d/` module could read the same store and extrude footprints, with a simple per-type mesh map, without touching the 2D editor.
-- **Snapping furniture to slanted walls**: `plan/walls.ts` has each wall's frame (direction and inward normal). A snap candidate that rotates an item to the nearest wall's angle and pushes its back flush would go next to the straight-wall candidates in `geometry/snapping.ts`.
+- **Snapping furniture to slanted walls**: the rotate handle already sticks to wall angles (`geometry/rotation.ts`). `plan/walls.ts` has each wall's frame (direction and inward normal). A snap candidate that pushes a turned item's back flush against the nearest wall would go next to the straight-wall candidates in `geometry/snapping.ts`.
 - **Free-standing walls and columns**: a list of short wall segments in the document, drawn with `wallPolygon`-style shapes and treated as obstacles in `furniture/analysis.ts` like another item's footprint.
 - **Radiators, sockets, window sills**: point or short-segment features on a wall, stored like `openings` (wall + offset), with their own drawing in `editor/OpeningNode.tsx` and optional rules in `furniture/analysis.ts` (for example "tall furniture in front of a window").
 - **Ergonomic scoring and viewing distance**: pure functions over `FurnitureItem[]` in `furniture/`, alongside `analysis.ts`. For example, eye-to-monitor distance could use the chair spot from `chairSpotForDesk`. Results can be rendered as another overlay, like `DeskGuides`.

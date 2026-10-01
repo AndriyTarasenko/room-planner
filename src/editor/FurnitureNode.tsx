@@ -4,6 +4,8 @@ import { memo, useRef } from 'react';
 import { Ellipse, Group, Line, Rect } from 'react-konva';
 import { isCircle, localOutline } from '../geometry/footprint';
 import { localToWorld } from '../geometry/rect';
+import { ROTATION_STEP, rotationSnapAngles, snapRotation } from '../geometry/rotation';
+import { roomAt } from '../plan/rooms';
 import { projectStore, selectItems } from '../store';
 import { ITEM_LIMITS } from '../store/defaults';
 import type { FurnitureItem } from '../types';
@@ -29,6 +31,8 @@ function setCursor(e: KonvaEventObject<MouseEvent>, cursor: string) {
   if (container) container.style.cursor = cursor;
 }
 
+const transformerOf = (e: KonvaEventObject<Event>) => e.currentTarget.getStage()?.findOne<Konva.Transformer>('Transformer');
+
 function cornerRadius(item: FurnitureItem): number {
   switch (item.type) {
     case 'office-chair':
@@ -46,6 +50,8 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
   const hovered = useUi((s) => s.hoveredId === item.id);
   /** A circle being resized stays a circle; decided when the gesture starts. */
   const resizingCircle = useRef(false);
+  /** Angles the rotate handle sticks to: diagonals and the walls of the item's room. */
+  const snapAngles = useRef<number[]>([]);
 
   const baseStroke = shade(item.color, 0.38);
   const stroke = colliding ? CANVAS.danger : selected ? CANVAS.accent : hovered ? shade(item.color, 0.6) : baseStroke;
@@ -95,12 +101,16 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     useUi.getState().setDragging(null);
   };
 
-  const handleTransformStart = () => {
+  const handleTransformStart = (e: KonvaEventObject<Event>) => {
     const s = projectStore.getState();
     s.select(item.id);
     s.beginGesture();
     const current = currentItem(item.id);
     resizingCircle.current = current !== undefined && isCircle(current);
+    if (current && transformerOf(e)?.getActiveAnchor() === 'rotater') {
+      snapAngles.current = rotationSnapAngles(roomAt(current, s.rooms).corners);
+      useUi.getState().setRotating(item.id);
+    }
   };
 
   /**
@@ -112,13 +122,22 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     const node = e.currentTarget as Konva.Group;
     const current = currentItem(item.id);
     if (!current) return;
-    const transformer = node.getStage()?.findOne<Konva.Transformer>('Transformer');
+    const transformer = transformerOf(e);
     const anchor = transformer?.getActiveAnchor();
     const s = projectStore.getState();
 
     if (anchor === 'rotater') {
-      const rotation = Math.round(node.rotation());
+      // Free in whole degrees, sticking to diagonals and walls; Shift: 15° steps; Alt: no sticking.
+      const keys = e.evt as Partial<MouseEvent> | undefined;
+      const rotation = snapRotation(
+        node.rotation(),
+        keys?.shiftKey ? { step: ROTATION_STEP } : { targets: keys?.altKey ? [] : snapAngles.current },
+      );
       node.rotation(rotation);
+      // Konva measures the next pointer move from the box's angle, which it set to the raw one
+      // and won't re-read from the node mid-gesture. Without this, small moves inside a snap
+      // would keep getting pulled back, and the box would drift off the item.
+      transformer?.rotation(rotation);
       node.position({ x: current.x, y: current.y });
       s.setGeometry(item.id, { rotation }, { clamp: false });
       return;
@@ -151,6 +170,7 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     const s = projectStore.getState();
     s.setGeometry(item.id, {});
     s.endGesture();
+    useUi.getState().setRotating(null);
   };
 
   const outline = item.shape.kind === 'l' ? localOutline(item) : null;

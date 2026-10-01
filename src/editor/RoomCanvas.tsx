@@ -1,7 +1,7 @@
 import Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { type DragEvent as ReactDragEvent, useEffect, useMemo, useRef } from 'react';
-import { Group, Layer, Stage, Transformer } from 'react-konva';
+import { Group, Layer, Stage } from 'react-konva';
 import { PRODUCT_DRAG_TYPE, droppedProduct, placeProduct } from '../catalog/placeProduct';
 import { analyzeLayoutCached } from '../furniture/analysis';
 import { centeredViewport, clampZoom, panForZoom, viewToWorld } from '../geometry/viewport';
@@ -18,6 +18,7 @@ import {
 } from '../store';
 import { DraftCapture, DraftLabels, DraftOutline } from './DraftLayer';
 import { FurnitureNode } from './FurnitureNode';
+import { ItemTransformer, RotationReadout } from './ItemTransformer';
 import { LShapeHandles } from './LShapeHandles';
 import { LabelsLayer } from './LabelsLayer';
 import { OpeningMeasurements, RoomDimensions, SelectionMeasurements, SnapGuides } from './MeasurementsLayer';
@@ -29,9 +30,6 @@ import { ClearanceZones, ConflictRegions, DeskGuides } from './ZoneLayers';
 import { PLAN_DRAG_TYPE, addPlanElement, droppedPlanTool } from './planTools';
 import { CANVAS, CANVAS_PADDING } from './theme';
 import { useUi } from './uiStore';
-
-const RESIZE_ANCHORS = ['middle-left', 'middle-right', 'top-center', 'bottom-center'];
-const ROTATION_SNAPS = [0, 45, 90, 135, 180, 225, 270, 315];
 
 /** The 2D top-down editor: floor plan, furniture, and all visual feedback. */
 export function RoomCanvas() {
@@ -55,6 +53,7 @@ export function RoomCanvas() {
   const guides = useUi((s) => s.guides);
   const drawing = useUi((s) => s.tool === 'draw');
   const measuring = useUi((s) => s.tool === 'measure');
+  const rotatingId = useUi((s) => s.rotatingId);
 
   const liveBox = useMemo(() => planExtent(rooms), [rooms]);
   const fitBox = frozenBox ?? liveBox;
@@ -66,6 +65,7 @@ export function RoomCanvas() {
   const selected = selectedId ? items.find((i) => i.id === selectedId) : undefined;
   // L-shaped items are sized by their arms' own handles instead of the transformer's box.
   const selectedL = selected?.shape.kind === 'l' ? { ...selected, shape: selected.shape } : null;
+  const rotating = selected && selected.id === rotatingId ? selected : null;
   // Room sizes are shown for the selected room, and always when the plan has a single room.
   const dimensionRoom = selectedRoom ?? (!selectedOpening && rooms.length === 1 ? rooms[0] : null);
 
@@ -220,25 +220,6 @@ export function RoomCanvas() {
               {selectedL && !drawing && <LShapeHandles item={selectedL} scale={vp.scale} />}
               {drawing && <DraftOutline scale={vp.scale} />}
             </Group>
-            <Transformer
-              ref={transformerRef}
-              rotateEnabled
-              enabledAnchors={selectedL ? [] : RESIZE_ANCHORS}
-              rotationSnaps={ROTATION_SNAPS}
-              rotationSnapTolerance={4}
-              rotateAnchorOffset={22}
-              keepRatio={false}
-              flipEnabled={false}
-              ignoreStroke
-              anchorSize={8}
-              anchorCornerRadius={2}
-              anchorStroke={CANVAS.accent}
-              anchorFill="#ffffff"
-              borderStroke={CANVAS.accent}
-              borderStrokeWidth={1}
-              padding={0}
-              boundBoxFunc={(oldBox, newBox) => (Math.abs(newBox.width) < 6 || Math.abs(newBox.height) < 6 ? oldBox : newBox)}
-            />
             {drawing && <DraftCapture vp={vp} width={size.width} height={size.height} />}
             {measuring && <RulerCapture vp={vp} width={size.width} height={size.height} />}
           </Layer>
@@ -252,6 +233,11 @@ export function RoomCanvas() {
             <SnapGuides guides={guides} vp={vp} />
             {drawing && <DraftLabels vp={vp} />}
             {measuring && <RulerOverlay vp={vp} />}
+          </Layer>
+          {/* Selection handles on top of labels and distances, so they are never covered. */}
+          <Layer listening={!drawing && !measuring}>
+            <ItemTransformer ref={transformerRef} resizable={!selectedL} />
+            {rotating && <RotationReadout item={rotating} vp={vp} />}
           </Layer>
         </Stage>
       )}
