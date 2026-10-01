@@ -11,10 +11,7 @@ import { axisWalls, pointOnWall, wallFrame } from '../plan/walls';
 import type { FurnitureItem, Opening, Room } from '../types';
 import { formatNumber } from '../utils/format';
 import { measureTextWidth } from '../utils/measureText';
-import { CANVAS, FONT_FAMILY } from './theme';
-
-const PILL_FONT = 10.5;
-const PILL_H = 17;
+import { CANVAS, FONT_FAMILY, PILL_FONT, PILL_H, pillWidth } from './theme';
 
 type Variant = 'wall' | 'gap' | 'host';
 
@@ -25,7 +22,7 @@ const VARIANT_STYLE: Record<Variant, { line: string; pill: string; dash?: number
 };
 
 export function Pill({ at, text, fill, textColor = '#fff' }: { at: Point; text: string; fill: string; textColor?: string }) {
-  const w = Math.ceil(measureTextWidth(text, `600 ${PILL_FONT}px ${FONT_FAMILY}`)) + 10;
+  const w = Math.ceil(pillWidth(text));
   return (
     <Group x={Math.round(at.x - w / 2)} y={Math.round(at.y - PILL_H / 2)}>
       <Rect width={w} height={PILL_H} cornerRadius={4} fill={fill} shadowColor="#000" shadowOpacity={0.12} shadowBlur={3} shadowOffsetY={1} />
@@ -50,7 +47,7 @@ function Dimension({ line, vp, variant, muted = false }: { line: MeasureLine; vp
   const nx = -uy * tick;
   const ny = ux * tick;
   const text = formatNumber(line.value);
-  const pillW = measureTextWidth(text, `600 ${PILL_FONT}px ${FONT_FAMILY}`) + 10;
+  const pillW = pillWidth(text);
   const pillExtent = Math.abs(ux) > 0.5 ? pillW : PILL_H;
   // Short lines get their label just past the far end so it doesn't cover the object.
   const label =

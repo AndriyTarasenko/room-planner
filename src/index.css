@@ -861,7 +861,7 @@ textarea.text-input {
 }
 
 .library-group {
-  margin-top: 10px;
+  margin-top: 6px;
 }
 
 .library-group-title {
@@ -928,19 +928,45 @@ textarea.text-input {
   padding-right: 4px;
 }
 
+.library-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Keeps the header row as tall as it was without the button. */
+.library-hint .icon-btn {
+  margin: -4px -4px -4px 0;
+}
+
+/* Sticks while its group scrolls by, so the group in view can be folded away. */
 .library-group-toggle {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 3px;
   width: 100%;
+  height: 24px;
   border: none;
-  background: none;
-  padding-left: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-2);
+  padding: 0 6px 0 2px;
   text-align: left;
 }
 
 .library-group-toggle:hover {
-  color: var(--text-2);
+  color: var(--text);
+  background: var(--field);
+}
+
+.library-group-count {
+  margin-left: auto;
+  color: var(--text-3);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 .glyph {
@@ -1766,17 +1792,8 @@ kbd {
 
 .plan-tools {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
-}
-
-/* Rooms take half a row each, doors and windows a third. */
-.plan-tools > .plan-tool {
-  grid-column: span 2;
-}
-
-.plan-tools > .plan-tool.room-tool {
-  grid-column: span 3;
 }
 
 .plan-tool[aria-pressed='true'] {

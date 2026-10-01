@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { deleteRoom } from '../components/projectActions';
 import { commitDraft, isDrawing, stopDrawing, typeLength, undoCorner } from '../editor/drawTool';
+import { clearMeasurement, isMeasuring, stopMeasuring, toggleMeasuring } from '../editor/rulerTool';
 import { useUi } from '../editor/uiStore';
 import { roomBounds } from '../plan/shape';
 import { wallFrame } from '../plan/walls';
@@ -45,6 +46,15 @@ function handleDrawingKey(e: KeyboardEvent, key: string, mod: boolean): boolean 
   return false;
 }
 
+/** Keys while measuring: Escape takes the measurement away, then stops measuring; Delete takes it away. */
+function handleMeasuringKey(key: string): boolean {
+  if (key === 'escape') {
+    if (!clearMeasurement()) stopMeasuring();
+    return true;
+  }
+  return (key === 'delete' || key === 'backspace') && clearMeasurement();
+}
+
 const ARROWS: Record<string, [number, number]> = {
   arrowleft: [-1, 0],
   arrowright: [1, 0],
@@ -53,7 +63,7 @@ const ARROWS: Record<string, [number, number]> = {
 };
 
 /**
- * Global editor shortcuts: undo/redo, delete, escape, rotate, duplicate and arrow nudging.
+ * Global editor shortcuts: undo/redo, delete, escape, rotate, duplicate, arrow nudging and M for the Ruler.
  * Delete and the arrows also work on a selected room (which takes its furniture along) and
  * on a door or window (which slides along its wall). Ignored while typing in a field or when
  * a dialog is open.
@@ -88,6 +98,16 @@ export function useKeyboardShortcuts() {
         return;
       }
       if (mod || e.altKey) return;
+
+      if (isMeasuring() && handleMeasuringKey(key)) {
+        e.preventDefault();
+        return;
+      }
+      if (key === 'm' && !isDrawing()) {
+        e.preventDefault();
+        toggleMeasuring();
+        return;
+      }
 
       if (key === 'escape') {
         s.select(null);

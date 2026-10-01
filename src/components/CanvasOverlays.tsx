@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CircleCheck, Grid3x3, Lock, Maximize, Minus, Plus, Ruler, Scan } from 'lucide-react';
+import { CircleCheck, Grid3x3, Lock, Maximize, Minus, Plus, RulerDimensionLine, Scan } from 'lucide-react';
 import { useUi } from '../editor/uiStore';
 import { analyzeLayoutCached } from '../furniture/analysis';
 import { clampZoom } from '../geometry/viewport';
@@ -69,7 +69,7 @@ export function CanvasToolbar() {
         <Chip settingKey="showClearances" icon={<Scan size={14} />} tip="Show clearance zones">
           Clearances
         </Chip>
-        <Chip settingKey="showMeasurements" icon={<Ruler size={14} />} tip="Show distances for the selection">
+        <Chip settingKey="showMeasurements" icon={<RulerDimensionLine size={14} />} tip="Show distances for the selection">
           Distances
         </Chip>
       </div>
@@ -163,10 +163,16 @@ export function CanvasStatus() {
 
 export function CanvasHint() {
   const drawing = useUi((s) => s.tool === 'draw');
+  const measuring = useUi((s) => s.tool === 'measure');
+  const placing = useUi((s) => s.ruler.phase === 'placing');
   const roomSelected = useEditor((s) => s.rooms.some((r) => r.id === s.selectedId));
   const text = drawing
     ? 'Click to place corners · click the first corner or press Enter to finish · Backspace undoes a corner · Esc stops'
-    : roomSelected
+    : measuring
+      ? placing
+        ? 'Click to place the other end · Esc cancels'
+        : 'Drag between two points, or click both ends · Alt: no snapping · middle-drag pans · Esc stops'
+      : roomSelected
       ? 'Drag a wall or corner to reshape · double-click a wall to add a corner, a corner to remove it'
       : 'Click a room to edit it · scroll to zoom · drag the floor to pan';
   return <div className="hint">{text}</div>;

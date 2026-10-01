@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, Plus, Search, Star } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Plus, Search, Star } from 'lucide-react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { BUILT_IN_PRODUCTS, findProduct, manufacturersOf } from '../../catalog/catalog';
 import { CATALOG_CATEGORIES, CATALOG_CATEGORY_ORDER } from '../../catalog/categories';
 import { LIVE_PROVIDERS } from '../../catalog/providers';
@@ -11,8 +11,38 @@ import { ImportProductDialog } from './ImportProductDialog';
 import { LiveSearchSection } from './LiveSearchSection';
 import { ProductDetailsDialog } from './ProductDetailsDialog';
 import { ProductRow } from './ProductRow';
+import { useCollapsedGroups } from './useCollapsedGroups';
 
 const isDefined = <T,>(v: T | undefined): v is T => v !== undefined;
+
+const RECENT_GROUP = 'recent';
+
+interface GroupProps {
+  title: string;
+  count: number;
+  /** Null shows the group open with a plain title (search results are never folded away). */
+  open: boolean | null;
+  onToggle: () => void;
+  children: ReactNode;
+}
+
+/** A titled group of products that folds away with a click on its title. */
+function LibraryGroup({ title, count, open, onToggle, children }: GroupProps) {
+  return (
+    <div className="library-group">
+      {open === null ? (
+        <div className="library-group-title">{title}</div>
+      ) : (
+        <button type="button" className="library-group-title library-group-toggle" aria-expanded={open} onClick={onToggle}>
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          {title}
+          <span className="library-group-count">{count}</span>
+        </button>
+      )}
+      {open !== false && children}
+    </div>
+  );
+}
 
 /** The furniture sidebar: search, filters, recently used, the catalog and optional online search. */
 export function FurnitureBrowser() {
@@ -20,7 +50,7 @@ export function FurnitureBrowser() {
   const [details, setDetails] = useState<FurnitureProduct | null>(null);
   const [importing, setImporting] = useState<LiveProductCandidate | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
-  const [recentOpen, setRecentOpen] = useState(true);
+  const { collapsed, toggle, collapseOnly } = useCollapsedGroups();
 
   const saved = useUserCatalog((s) => s.products);
   const favorites = useUserCatalog((s) => s.favorites);
@@ -39,6 +69,10 @@ export function FurnitureBrowser() {
   const recentProducts = useMemo(() => recent.map((id) => findProduct(id, saved)).filter(isDefined), [recent, saved]);
   const filtering = isFiltering(effective);
   const set = (patch: Partial<CatalogFilter>) => setFilter((f) => ({ ...f, ...patch }));
+  const showRecent = !filtering && recentProducts.length > 0;
+  const groupIds: string[] = [...(showRecent ? [RECENT_GROUP] : []), ...groups.map((g) => g.category)];
+  const allCollapsed = groupIds.every((id) => collapsed.has(id));
+  const isOpen = (id: string) => (filtering ? null : !collapsed.has(id));
 
   const emptyNote = effective.favoritesOnly && favorites.length === 0
     ? 'No favorites yet. Use the star on any item to keep it here.'
@@ -55,7 +89,20 @@ export function FurnitureBrowser() {
           <h3 className="section-title" style={{ margin: 0 }}>
             Furniture
           </h3>
-          <span className="section-hint">{filtering ? `${results.length} found` : 'Click or drag to add'}</span>
+          <span className="section-hint library-hint">
+            {filtering ? `${results.length} found` : 'Click or drag to add'}
+            {!filtering && groupIds.length > 0 && (
+              <button
+                type="button"
+                className="icon-btn icon-btn-sm"
+                aria-label={allCollapsed ? 'Expand all categories' : 'Collapse all categories'}
+                data-tip={allCollapsed ? 'Expand all' : 'Collapse all'}
+                onClick={() => collapseOnly(allCollapsed ? [] : groupIds)}
+              >
+                {allCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+              </button>
+            )}
+          </span>
         </div>
 
         <label className="input library-search">
@@ -127,23 +174,26 @@ export function FurnitureBrowser() {
           )}
         </div>
 
-        {!filtering && recentProducts.length > 0 && (
-          <div className="library-group">
-            <button type="button" className="library-group-title library-group-toggle" aria-expanded={recentOpen} onClick={() => setRecentOpen((o) => !o)}>
-              {recentOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              Recently used
-            </button>
-            {recentOpen && recentProducts.map((p) => <ProductRow key={`recent-${p.id}`} product={p} onDetails={setDetails} />)}
-          </div>
+        {showRecent && (
+          <LibraryGroup title="Recently used" count={recentProducts.length} open={isOpen(RECENT_GROUP)} onToggle={() => toggle(RECENT_GROUP)}>
+            {recentProducts.map((p) => (
+              <ProductRow key={`recent-${p.id}`} product={p} onDetails={setDetails} />
+            ))}
+          </LibraryGroup>
         )}
 
         {groups.map(({ category, products }) => (
-          <div className="library-group" key={category}>
-            <div className="library-group-title">{CATALOG_CATEGORIES[category].plural}</div>
+          <LibraryGroup
+            key={category}
+            title={CATALOG_CATEGORIES[category].plural}
+            count={products.length}
+            open={isOpen(category)}
+            onToggle={() => toggle(category)}
+          >
             {products.map((p) => (
               <ProductRow key={p.id} product={p} onDetails={setDetails} />
             ))}
-          </div>
+          </LibraryGroup>
         ))}
         {groups.length === 0 && <p className="empty-note">{emptyNote}</p>}
 

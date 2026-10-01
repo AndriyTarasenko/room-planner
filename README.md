@@ -10,12 +10,13 @@ Everything runs in the browser. There is no backend and no account; the project 
 - **Rooms of any shape**: **Draw walls** draws a room wall by wall. Click to place each corner and click the first corner again (or press `Enter`, or double-click the last corner) to close it. Walls snap to horizontal, vertical and 45°, corners snap onto the corners of existing rooms so the new room can share their walls, and typing a number while drawing gives the next wall that exact length. Any room can also be reshaped: drag a wall to move it (the walls next to it keep their direction, so corners stay square), drag a corner anywhere for a slanted wall, double-click a wall to add a corner, and double-click a corner to remove it. Moving part of a split wall adds the short walls on either side, so a niche, a bay or a chimney breast takes two double-clicks and a drag. The inspector lists every wall with its length, which you can type in exactly.
 - **Walls**: each wall has its own thickness (12 cm by default, drawn outside the interior so interior sizes stay exact), or no wall at all. Walls meet in clean mitered corners at any angle. Switch off the outer wall of a balcony for its open side, or the walls between two rooms to join them into one open-plan space. Furniture can span such a seam.
 - **Doors, windows and passages**: click **Door**, **Window** or **Passage** to add one to the current room, or drag it onto a wall, slanted walls included. Drag it along the wall and around corners, or set its width and distance from either corner in the inspector. Doors have a hinge side and open into the room or outward. A door between two rooms cuts through the wall they share.
-- **Furniture catalog**: generic furniture in typical sizes, 69 real IKEA products with verified dimensions, optional IKEA online search, and your own saved products. Search, filter by manufacturer and category, keep favorites, and find the last 8 items you used. Click an item to add it, or drag it onto the canvas. See [Furniture catalog](#furniture-catalog).
+- **Furniture catalog**: generic furniture in typical sizes, 69 real IKEA products with verified dimensions, optional IKEA online search, and your own saved products. Search, filter by manufacturer and category, keep favorites, and find the last 8 items you used. Categories fold away with a click on their title (or all at once), and this browser remembers which ones are folded. Click an item to add it, or drag it onto the canvas. See [Furniture catalog](#furniture-catalog).
 - **Editing**: drag, rotate (handle, `R`, or 0/90/180/270 buttons), resize with handles or exact inspector fields. Numeric fields accept arithmetic such as `180+20`.
 - **Round furniture**: round and oval tables, poufs, stools and plants. A circle is sized by its diameter (Ø) and stays a circle when you drag either handle. Tables, poufs, plants and plain objects can be switched between **Rectangle**, **Round** and **Oval** in the inspector. Collisions, clearance checks and "inside the room" use the round outline, so a chair in the corner of a round table's bounding box isn't a collision.
 - **Desk shortcuts**: one-click desk widths (140/160/180/200) that keep the desk against its wall, monitor and TV size switching, and optional desk guides (monitor area, reach zone, chair spot).
 - **Monitors and other items on furniture**: dropping a monitor on a desk attaches it. It then moves and rotates with the desk and is not counted as a collision. Adding a second monitor centers the pair on the desk. A new TV goes onto a TV bench, and a microwave or kitchen wall cabinet onto a kitchen counter.
 - **Measurements**: live distances from the selection to the nearest wall of its room in each direction, gaps to the nearest furniture in each direction, and, for monitors, distances to the desk edges. A selected door or window shows its distance to both corners of the wall.
+- **Ruler**: **Measure** under *Floor plan* (or `M`) measures the distance between any two points. Drag from one point to the other, or click both ends. The ends snap to the corners of rooms, walls, doors, windows and furniture, to the centers of round furniture, and onto wall faces and furniture outlines. Near horizontal or vertical, the measurement locks to that axis and stops on a wall or furniture edge it crosses. A slanted measurement also shows its horizontal and vertical parts. Hold `Alt` to place the ends freely. While measuring, the middle mouse button pans, and `Escape` removes the measurement, then leaves the tool.
 - **Snapping**: to walls, to nearby furniture edges and centers, and optionally to the grid (5/10/25/50 cm, measured from the room's corner), with visual guides. Hold `Alt` while dragging to disable snapping.
 - **Collisions**: overlapping furniture is outlined in red, the actual overlap area is shaded, and a warning appears. Overlap is never blocked. Items can opt out, for example a PC tower under a desk.
 - **Clearance zones**: per-object free space on each side (front/back/left/right), such as chair roll-back or wardrobe doors. Furniture inside a zone, or a zone running into a wall, is flagged in amber. These are not counted as collisions.
@@ -35,6 +36,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 | `Escape` | Deselect |
 | `R` / `Shift+R` | Rotate 90° clockwise / counter-clockwise |
 | `Ctrl+D` | Duplicate |
+| `M` | Ruler: measure between two points (`M` again to stop) |
 | Arrow keys (`Shift` for 10 cm) | Nudge 1 cm. A room moves with its furniture; a door or window slides along its wall |
 | `Alt` while dragging | No snapping |
 
@@ -231,8 +233,8 @@ src/
                 free area
   plan/         Pure TypeScript floor plan: mitered wall shapes, which room a point or item is
                 in, "on the floor" checks across open-plan rooms, door/window cuts and swings,
-                room docking and snapping, outline editing (shape.ts) and wall drawing
-                (drawing.ts)
+                room docking and snapping, outline editing (shape.ts), wall drawing
+                (drawing.ts) and Ruler snapping (ruler.ts)
   furniture/    Generic presets, item factory and placement, domain rules, layout analysis
   catalog/      Manufacturer-independent catalog: FurnitureProduct model, search and
                 filters, product → room item conversion, My furniture (localStorage)
@@ -242,7 +244,7 @@ src/
   store/        Zustand store with undo/redo, pure document operations,
                 persistence (localStorage) and import/export validation
   editor/       react-konva canvas: floors, walls, doors and windows, room handles, the
-                "Draw walls" tool, furniture nodes, labels, measurements, clearance/collision
+                "Draw walls" tool, the Ruler, furniture nodes, labels, measurements, clearance/collision
                 overlays, drag logic, transient UI state
   components/   Top bar, layout tabs, library, inspector, dialogs, UI primitives
   hooks/        Keyboard shortcuts, element size, commit-on-unmount for fields

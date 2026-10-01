@@ -17,6 +17,7 @@ const SHORTCUTS: [string[], string][] = [
   [['Ctrl', 'D'], 'Duplicate'],
   [['Del'], 'Delete'],
   [['←', '→', '↑', '↓'], 'Nudge 1 cm (Shift: 10)'],
+  [['M'], 'Measure (Ruler)'],
   [['Alt'], 'Hold while dragging: no snapping'],
   [['Esc'], 'Deselect'],
 ];

@@ -1,3 +1,5 @@
+import { measureTextWidth } from '../utils/measureText';
+
 /** Canvas colors and sizes. Kept in TS because Konva draws outside the CSS cascade. */
 export const CANVAS = {
   background: '#e9ebee',
@@ -21,6 +23,13 @@ export const CANVAS = {
 } as const;
 
 export const FONT_FAMILY = "'Inter Variable', 'Segoe UI', system-ui, sans-serif";
+
+/** Value pills on dimension lines. */
+export const PILL_FONT = 10.5;
+export const PILL_H = 17;
+
+/** Width in px of a value pill showing `text`. */
+export const pillWidth = (text: string) => measureTextWidth(text, `600 ${PILL_FONT}px ${FONT_FAMILY}`) + 10;
 
 /** Space around the plan when fitting it to the canvas, in px. */
 export const CANVAS_PADDING = 64;

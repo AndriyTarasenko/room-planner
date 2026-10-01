@@ -1,4 +1,4 @@
-import type Konva from 'konva';
+import Konva from 'konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { type DragEvent as ReactDragEvent, useEffect, useMemo, useRef } from 'react';
 import { Group, Layer, Stage, Transformer } from 'react-konva';
@@ -23,6 +23,7 @@ import { OpeningMeasurements, RoomDimensions, SelectionMeasurements, SnapGuides 
 import { OpeningNode } from './OpeningNode';
 import { RoomFloors, RoomLabels, RoomWalls } from './PlanLayer';
 import { RoomHandles } from './RoomHandles';
+import { RulerCapture, RulerOverlay } from './RulerLayer';
 import { ClearanceZones, ConflictRegions, DeskGuides } from './ZoneLayers';
 import { PLAN_DRAG_TYPE, addPlanElement, droppedPlanTool } from './planTools';
 import { CANVAS, CANVAS_PADDING } from './theme';
@@ -52,6 +53,7 @@ export function RoomCanvas() {
   const frozenBox = useUi((s) => s.fitBox);
   const guides = useUi((s) => s.guides);
   const drawing = useUi((s) => s.tool === 'draw');
+  const measuring = useUi((s) => s.tool === 'measure');
 
   const liveBox = useMemo(() => planExtent(rooms), [rooms]);
   const fitBox = frozenBox ?? liveBox;
@@ -77,6 +79,16 @@ export function RoomCanvas() {
   useEffect(() => {
     useUi.getState().setLiveBox(liveBox);
   }, [liveBox]);
+
+  // While measuring, the left button measures; only the middle button pans.
+  useEffect(() => {
+    if (!measuring) return;
+    const previous = Konva.dragButtons;
+    Konva.dragButtons = [1];
+    return () => {
+      Konva.dragButtons = previous;
+    };
+  }, [measuring]);
 
   // With nothing selected, new furniture goes into the room in the middle of the view.
   useEffect(() => {
@@ -147,9 +159,11 @@ export function RoomCanvas() {
     <div
       ref={containerRef}
       className="canvas-host"
-      style={{ background: CANVAS.background, cursor: drawing ? 'crosshair' : undefined }}
+      style={{ background: CANVAS.background, cursor: drawing || measuring ? 'crosshair' : undefined }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      // No autoscroll on a middle click: the middle button pans the plan.
+      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
     >
       {ready && (
         <Stage
@@ -222,6 +236,7 @@ export function RoomCanvas() {
               boundBoxFunc={(oldBox, newBox) => (Math.abs(newBox.width) < 6 || Math.abs(newBox.height) < 6 ? oldBox : newBox)}
             />
             {drawing && <DraftCapture vp={vp} width={size.width} height={size.height} />}
+            {measuring && <RulerCapture vp={vp} width={size.width} height={size.height} />}
           </Layer>
           <Layer listening={false}>
             <LabelsLayer items={ordered} vp={vp} />
@@ -232,6 +247,7 @@ export function RoomCanvas() {
             )}
             <SnapGuides guides={guides} vp={vp} />
             {drawing && <DraftLabels vp={vp} />}
+            {measuring && <RulerOverlay vp={vp} />}
           </Layer>
         </Stage>
       )}
