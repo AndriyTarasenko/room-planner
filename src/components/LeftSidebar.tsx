@@ -4,10 +4,11 @@ import { type PlanTool, addPlanElement, startPlanDrag } from '../editor/planTool
 import { toggleMeasuring } from '../editor/rulerTool';
 import { useUi } from '../editor/uiStore';
 import { roomArea } from '../plan/shape';
-import { useEditor } from '../store';
+import { selectRooms, useEditor } from '../store';
 import { formatArea } from '../utils/format';
 import { FurnitureBrowser } from './catalog/FurnitureBrowser';
 import { DRAW_ICON, MEASURE_ICON, OPENING_ICONS, ROOM_ICON } from './planIcons';
+import { SharedPlanNote } from './SharedPlanNote';
 import { Section } from './ui/controls';
 
 export function LeftSidebar() {
@@ -27,7 +28,7 @@ const TOOLS: { tool: PlanTool; label: string; icon: ReactNode; title: string }[]
 ];
 
 function FloorPlanTools() {
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const tool = useUi((s) => s.tool);
   const drawing = tool === 'draw';
   const measuring = tool === 'measure';
@@ -92,6 +93,7 @@ function FloorPlanTools() {
             ? 'Drag between two points, or click both ends. Ends snap to corners, walls and furniture; hold Alt to place them freely.'
             : 'Draw walls for a room of any shape. Click a room, door or window on the plan to change it.'}
       </p>
+      <SharedPlanNote />
     </Section>
   );
 }

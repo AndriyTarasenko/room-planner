@@ -194,9 +194,21 @@ export interface Room {
   openings: Opening[];
 }
 
+/**
+ * The rooms, walls, doors and windows a layout's furniture stands in. Several layouts can
+ * share one floor plan, so a wall fixed once is fixed in all of them; a layout with its own
+ * copy can try out a different plan without touching the others.
+ */
+export interface FloorPlan {
+  id: string;
+  rooms: Room[];
+}
+
 export interface Layout {
   id: string;
   name: string;
+  /** The floor plan this layout is arranged in. */
+  planId: string;
   furniture: FurnitureItem[];
 }
 
@@ -215,11 +227,11 @@ export interface Settings {
 }
 
 /**
- * The undoable part of the application state. Rooms form the floor plan shared by all
- * layouts; furniture is stored in plan coordinates.
+ * The undoable part of the application state. Every layout points to one of the floor plans;
+ * furniture is stored in plan coordinates.
  */
 export interface ProjectDocument {
-  rooms: Room[];
+  plans: FloorPlan[];
   layouts: Layout[];
   activeLayoutId: string;
 }
@@ -236,8 +248,9 @@ export const PROJECT_FILE_FORMAT = 'room-planner-project';
  * 3: `room` became `rooms`, each with a name, position, walls and openings (doors, windows).
  * 4: rooms became polygons: `corners` and a list of `walls` replace position, size and the
  *    four named sides; openings refer to a wall by index.
+ * 5: `rooms` moved into `plans`, a list of floor plans; each layout names its plan in `planId`.
  */
-export const PROJECT_SCHEMA_VERSION = 4;
+export const PROJECT_SCHEMA_VERSION = 5;
 
 /** Shape of exported JSON files. */
 export interface ProjectFile extends ProjectData {

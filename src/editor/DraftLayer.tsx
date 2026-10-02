@@ -4,7 +4,7 @@ import { Circle, Group, Line, Rect } from 'react-konva';
 import type { Point } from '../geometry/rect';
 import { type Viewport, viewToWorld, worldToView } from '../geometry/viewport';
 import { pointAtLength, snapDraftPoint } from '../plan/drawing';
-import { projectStore } from '../store';
+import { projectStore, selectRooms } from '../store';
 import { parseNumberInput } from '../utils/parseNumber';
 import { formatNumber } from '../utils/format';
 import { SNAP_DISTANCE_PX } from './dragLogic';
@@ -38,12 +38,12 @@ export function DraftCapture({ vp, width, height }: { vp: Viewport; width: numbe
     if (!pointer) return null;
     const { pan: current, draft } = useUi.getState();
     const raw = viewToWorld({ x: pointer.x - current.x, y: pointer.y - current.y }, vp);
-    const { rooms, settings } = projectStore.getState();
+    const s = projectStore.getState();
     const alt = 'altKey' in e.evt && e.evt.altKey;
-    return snapDraftPoint(raw, draft.points, rooms, {
+    return snapDraftPoint(raw, draft.points, selectRooms(s), {
       threshold: SNAP_DISTANCE_PX / vp.scale,
       snap: !alt,
-      grid: settings.snapToGrid ? settings.gridSize : null,
+      grid: s.settings.snapToGrid ? s.settings.gridSize : null,
     });
   };
 

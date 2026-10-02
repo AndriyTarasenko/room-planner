@@ -6,11 +6,12 @@ import { OPENING_DEFAULTS } from '../plan/openings';
 import { itemIdsInRoom } from '../plan/rooms';
 import { MIN_WALL_LENGTH, roomArea, roomBounds, roomRect } from '../plan/shape';
 import { WALL_LIMITS, wallFrame, wallNames } from '../plan/walls';
-import { projectStore, selectItems, useEditor } from '../store';
+import { projectStore, selectItems, selectRooms, useEditor } from '../store';
 import { ROOM_LIMITS } from '../store/defaults';
 import type { OpeningKind, Room } from '../types';
 import { formatArea, formatNumber, formatPercent, formatSize } from '../utils/format';
 import { OPENING_ICONS } from './planIcons';
+import { SharedPlanNote } from './SharedPlanNote';
 import { deleteRoom } from './projectActions';
 import { toast } from './ui/toastStore';
 import { NumberField } from './ui/NumberField';
@@ -18,7 +19,7 @@ import { Section, Switch, TextField } from './ui/controls';
 
 /** Properties of the selected room: name, size, position, walls and its doors and windows. */
 export function RoomInspector({ room }: { room: Room }) {
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const items = useEditor(selectItems);
   const analysis = analyzeLayoutCached(items, rooms);
   const usage = analysis.roomUsage.get(room.id);
@@ -54,6 +55,7 @@ export function RoomInspector({ room }: { room: Room }) {
             <Trash2 size={16} />
           </button>
         </div>
+        <SharedPlanNote />
       </div>
 
       <Section title="Size" aside={<span className="section-hint">cm, inside the walls</span>}>

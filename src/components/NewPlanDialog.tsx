@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { roomBounds } from '../plan/shape';
-import { projectStore } from '../store';
+import { projectStore, selectRooms } from '../store';
 import { ROOM_LIMITS } from '../store/defaults';
 import { Dialog } from './ui/Dialog';
 import { NumberField } from './ui/NumberField';
@@ -21,7 +21,7 @@ export function NewPlanDialog({ open, onClose }: { open: boolean; onClose: () =>
 
 function NewPlanForm({ onDone }: { onDone: () => void }) {
   const [size, setSize] = useState(() => {
-    const first = projectStore.getState().rooms[0];
+    const first = selectRooms(projectStore.getState())[0];
     if (!first) return { width: 380, depth: 320 };
     const b = roomBounds(first);
     return { width: Math.round(b.maxX - b.minX), depth: Math.round(b.maxY - b.minY) };

@@ -1,7 +1,8 @@
-import { Copy, CopyPlus, Ellipsis, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Copy, CopyPlus, Ellipsis, Layers2, Pencil, Plus, Trash2, Unlink } from 'lucide-react';
 import { useState } from 'react';
 import { projectStore, useEditor } from '../store';
 import type { Layout } from '../types';
+import { layoutNames, unlinkLayoutPlan } from './projectActions';
 import { Menu, MenuItem, MenuSeparator } from './ui/Menu';
 import { toast } from './ui/toastStore';
 
@@ -21,6 +22,7 @@ export function LayoutTabs() {
           active={layout.id === activeId}
           renaming={layout.id === renamingId}
           canDelete={layouts.length > 1}
+          sharedWith={layouts.filter((l) => l.id !== layout.id && l.planId === layout.planId).map((l) => l.name)}
           onStartRename={() => setRenamingId(layout.id)}
           onEndRename={() => setRenamingId(null)}
         />
@@ -44,6 +46,15 @@ export function LayoutTabs() {
               Duplicate current layout
             </MenuItem>
             <MenuItem
+              icon={<Layers2 size={15} />}
+              onSelect={() => {
+                close();
+                duplicateLayout(projectStore.getState().activeLayoutId, { ownPlan: true });
+              }}
+            >
+              Duplicate with its own floor plan
+            </MenuItem>
+            <MenuItem
               icon={<Plus size={15} />}
               onSelect={() => {
                 close();
@@ -64,12 +75,15 @@ interface TabProps {
   active: boolean;
   renaming: boolean;
   canDelete: boolean;
+  /** Names of the other layouts on this layout's floor plan. */
+  sharedWith: string[];
   onStartRename: () => void;
   onEndRename: () => void;
 }
 
-function LayoutTab({ layout, active, renaming, canDelete, onStartRename, onEndRename }: TabProps) {
+function LayoutTab({ layout, active, renaming, canDelete, sharedWith, onStartRename, onEndRename }: TabProps) {
   const { switchLayout, renameLayout, duplicateLayout, deleteLayout } = projectStore.getState();
+  const sharing = sharedWith.length > 0 ? `. Floor plan shared with ${layoutNames(sharedWith)}` : '';
 
   if (renaming) {
     const finish = (value: string | null) => {
@@ -102,7 +116,7 @@ function LayoutTab({ layout, active, renaming, canDelete, onStartRename, onEndRe
         role="tab"
         aria-selected={active}
         className="tab-label"
-        title={`${layout.name}. Double-click to rename`}
+        title={`${layout.name}${sharing}. Double-click to rename`}
         onClick={() => switchLayout(layout.id)}
         onDoubleClick={onStartRename}
       >
@@ -137,6 +151,26 @@ function LayoutTab({ layout, active, renaming, canDelete, onStartRename, onEndRe
               >
                 Duplicate
               </MenuItem>
+              <MenuItem
+                icon={<Layers2 size={15} />}
+                onSelect={() => {
+                  close();
+                  duplicateLayout(layout.id, { ownPlan: true });
+                }}
+              >
+                Duplicate with its own floor plan
+              </MenuItem>
+              {sharedWith.length > 0 && (
+                <MenuItem
+                  icon={<Unlink size={15} />}
+                  onSelect={() => {
+                    close();
+                    unlinkLayoutPlan(layout.id);
+                  }}
+                >
+                  Unlink floor plan
+                </MenuItem>
+              )}
               <MenuSeparator />
               <MenuItem
                 danger

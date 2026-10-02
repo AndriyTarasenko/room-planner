@@ -6,7 +6,7 @@ import { frameOf, worldParts } from '../geometry/footprint';
 import { localToWorld, normalizeAngle, worldToLocal } from '../geometry/rect';
 import { floorClampOffset, itemIdsInRoom } from '../plan/rooms';
 import { moveRoomTo, resizeRect, roomBounds, roomRect } from '../plan/shape';
-import type { FurnitureItem, Layout, Opening, ProjectDocument, Room } from '../types';
+import type { FloorPlan, FurnitureItem, Layout, Opening, ProjectDocument, Room } from '../types';
 import { createId } from '../utils/id';
 
 export type Geometry = Pick<FurnitureItem, 'x' | 'y' | 'width' | 'depth' | 'rotation'>;
@@ -23,6 +23,55 @@ export interface RoomGeometry {
 
 export function getActiveLayout(doc: ProjectDocument): Layout {
   return doc.layouts.find((l) => l.id === doc.activeLayoutId) ?? doc.layouts[0];
+}
+
+/** The floor plan of the active layout. */
+export function getActivePlan(doc: ProjectDocument): FloorPlan {
+  const { planId } = getActiveLayout(doc);
+  return doc.plans.find((p) => p.id === planId) ?? doc.plans[0];
+}
+
+/** Rooms of the active layout's floor plan. */
+export function activeRooms(doc: ProjectDocument): Room[] {
+  return getActivePlan(doc).rooms;
+}
+
+/** The other layouts that use the same floor plan as `layoutId`. */
+export function layoutsSharingPlan(doc: ProjectDocument, layoutId: string): Layout[] {
+  const layout = doc.layouts.find((l) => l.id === layoutId);
+  return layout ? doc.layouts.filter((l) => l.id !== layoutId && l.planId === layout.planId) : [];
+}
+
+/**
+ * Gives a layout its own copy of the floor plan it shares with other layouts, so changes to
+ * either no longer show in the other. Room and opening ids are kept: they are the same rooms,
+ * and a selected room stays selected when switching between the layouts.
+ */
+export function unlinkPlan(doc: ProjectDocument, layoutId: string): ProjectDocument {
+  if (layoutsSharingPlan(doc, layoutId).length === 0) return doc;
+  const layout = doc.layouts.find((l) => l.id === layoutId)!;
+  const source = doc.plans.find((p) => p.id === layout.planId) ?? doc.plans[0];
+  // Updates are immutable, so the copy can start out sharing the rooms.
+  const plan: FloorPlan = { id: createId('plan'), rooms: source.rooms };
+  return {
+    ...doc,
+    plans: [...doc.plans, plan],
+    layouts: doc.layouts.map((l) => (l.id === layoutId ? { ...l, planId: plan.id } : l)),
+  };
+}
+
+/** Drops floor plans no layout uses any more. */
+export function prunePlans(doc: ProjectDocument): ProjectDocument {
+  const used = new Set(doc.layouts.map((l) => l.planId));
+  return doc.plans.every((p) => used.has(p.id)) ? doc : { ...doc, plans: doc.plans.filter((p) => used.has(p.id)) };
+}
+
+/** Replaces the rooms of the active layout's floor plan. */
+export function mapActiveRooms(doc: ProjectDocument, fn: (rooms: Room[]) => Room[]): ProjectDocument {
+  const plan = getActivePlan(doc);
+  const rooms = fn(plan.rooms);
+  if (rooms === plan.rooms) return doc;
+  return { ...doc, plans: doc.plans.map((p) => (p.id === plan.id ? { ...p, rooms } : p)) };
 }
 
 export function mapActiveFurniture(
@@ -115,12 +164,13 @@ export function sendBackward(items: FurnitureItem[], id: string): FurnitureItem[
   return next;
 }
 
-/** Deep copy of a layout with new ids (attachments are remapped). */
+/** Deep copy of a layout with new ids (attachments are remapped), on the same floor plan. */
 export function cloneLayout(layout: Layout, name: string): Layout {
   const idMap = new Map(layout.furniture.map((i) => [i.id, createId('item')]));
   return {
     id: createId('layout'),
     name,
+    planId: layout.planId,
     furniture: layout.furniture.map((i) => ({
       ...i,
       clearance: { ...i.clearance },
@@ -142,14 +192,23 @@ export function nextLayoutName(layouts: readonly Layout[]): string {
   return `Layout ${layouts.length + 1}`;
 }
 
+/** Changes one room of the active floor plan. */
 export function mapRoom(doc: ProjectDocument, id: string, fn: (room: Room) => Room): ProjectDocument {
-  const idx = doc.rooms.findIndex((r) => r.id === id);
-  if (idx < 0) return doc;
-  const next = fn(doc.rooms[idx]);
-  if (next === doc.rooms[idx]) return doc;
-  const rooms = doc.rooms.slice();
-  rooms[idx] = next;
-  return { ...doc, rooms };
+  return mapActiveRooms(doc, (rooms) => {
+    const idx = rooms.findIndex((r) => r.id === id);
+    if (idx < 0) return rooms;
+    const next = fn(rooms[idx]);
+    if (next === rooms[idx]) return rooms;
+    const copy = rooms.slice();
+    copy[idx] = next;
+    return copy;
+  });
+}
+
+/** Changes every layout on the active floor plan. */
+function mapPlanLayouts(doc: ProjectDocument, fn: (layout: Layout) => Layout): Layout[] {
+  const { planId } = getActiveLayout(doc);
+  return doc.layouts.map((layout) => (layout.planId === planId ? fn(layout) : layout));
 }
 
 export function findOpening(rooms: readonly Room[], id: string): { room: Room; opening: Opening } | null {
@@ -161,9 +220,10 @@ export function findOpening(rooms: readonly Room[], id: string): { room: Room; o
 }
 
 /**
- * Moves a room, or moves and resizes a rectangular one.
+ * Moves a room of the active floor plan, or moves and resizes a rectangular one.
  *
- * With `carry`, the room moves as a whole and its furniture moves along, in every layout.
+ * With `carry`, the room moves as a whole and its furniture moves along, in every layout on
+ * that floor plan.
  * Which furniture belongs to the room is decided on `base`, the document when the drag
  * started, so a room dragged across other furniture doesn't pick it up on the way.
  *
@@ -177,7 +237,7 @@ export function applyRoomGeometry(
   patch: Partial<RoomGeometry>,
   carry: boolean,
 ): ProjectDocument {
-  const room = doc.rooms.find((r) => r.id === id);
+  const room = activeRooms(doc).find((r) => r.id === id);
   if (!room) return doc;
   const bounds = roomBounds(room);
   const x = patch.x ?? bounds.minX;
@@ -191,22 +251,22 @@ export function applyRoomGeometry(
 }
 
 /**
- * Puts a changed room into the document. With `carry`, its furniture (decided on `base`, as
- * in applyRoomGeometry) moves by as much as the room moved since `base`.
+ * Puts a changed room into the active floor plan. With `carry`, its furniture (decided on
+ * `base`, as in applyRoomGeometry) moves by as much as the room moved since `base`.
  */
 export function replaceRoom(doc: ProjectDocument, base: ProjectDocument, next: Room, carry: boolean): ProjectDocument {
   const id = next.id;
-  const room = doc.rooms.find((r) => r.id === id);
+  const room = activeRooms(doc).find((r) => r.id === id);
   if (!room || room === next) return doc;
 
   let layouts = doc.layouts;
   if (carry) {
-    const baseRoom = base.rooms.find((r) => r.id === id) ?? room;
+    const baseRoom = activeRooms(base).find((r) => r.id === id) ?? room;
     const before = roomBounds(baseRoom);
     const after = roomBounds(next);
     const totalX = after.minX - before.minX;
     const totalY = after.minY - before.minY;
-    layouts = doc.layouts.map((layout) => {
+    layouts = mapPlanLayouts(doc, (layout) => {
       const baseItems = (base.layouts.find((l) => l.id === layout.id) ?? layout).furniture;
       const ids = itemIdsInRoom(baseItems, baseRoom);
       if (ids.size === 0) return layout;
@@ -220,14 +280,18 @@ export function replaceRoom(doc: ProjectDocument, base: ProjectDocument, next: R
       };
     });
   }
-  return { ...doc, rooms: doc.rooms.map((r) => (r.id === id ? next : r)), layouts };
+  return mapActiveRooms({ ...doc, layouts }, (rooms) => rooms.map((r) => (r.id === id ? next : r)));
 }
 
-/** Removes a room and the furniture standing in it, in every layout. The last room is never removed. */
+/**
+ * Removes a room of the active floor plan and the furniture standing in it, in every layout on
+ * that plan. The last room is never removed.
+ */
 export function removeRoom(doc: ProjectDocument, id: string): ProjectDocument {
-  const room = doc.rooms.find((r) => r.id === id);
-  if (!room || doc.rooms.length <= 1) return doc;
-  const layouts = doc.layouts.map((layout) => {
+  const rooms = activeRooms(doc);
+  const room = rooms.find((r) => r.id === id);
+  if (!room || rooms.length <= 1) return doc;
+  const layouts = mapPlanLayouts(doc, (layout) => {
     const ids = itemIdsInRoom(layout.furniture, room);
     if (ids.size === 0) return layout;
     return {
@@ -237,7 +301,7 @@ export function removeRoom(doc: ProjectDocument, id: string): ProjectDocument {
         .map((i) => (i.attachedTo && ids.has(i.attachedTo) ? { ...i, attachedTo: null } : i)),
     };
   });
-  return { ...doc, rooms: doc.rooms.filter((r) => r.id !== id), layouts };
+  return mapActiveRooms({ ...doc, layouts }, (list) => list.filter((r) => r.id !== id));
 }
 
 export function uniqueCopyName(name: string, layouts: readonly Layout[]): string {

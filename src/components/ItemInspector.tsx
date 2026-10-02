@@ -11,7 +11,7 @@ import { L_MIN_ARM } from '../geometry/lShape';
 import { isQuarterTurn, normalizeAngle } from '../geometry/rect';
 import { roomForBox } from '../plan/rooms';
 import { roomBounds } from '../plan/shape';
-import { projectStore, selectItems, useEditor } from '../store';
+import { projectStore, selectItems, selectRooms, useEditor } from '../store';
 import { ITEM_LIMITS } from '../store/defaults';
 import type { Category, Clearance, FurnitureItem, FurnitureType, Placement, ProductRef } from '../types';
 import { formatNumber } from '../utils/format';
@@ -23,7 +23,7 @@ const SIDE_PREFIX: Record<keyof Omit<Clearance, 'enabled'>, string> = { front: '
 
 /** Properties and actions for the selected object. */
 export function ItemInspector({ item }: { item: FurnitureItem }) {
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const items = useEditor(selectItems);
   const actions = projectStore.getState();
   const analysis = analyzeLayoutCached(items, rooms);

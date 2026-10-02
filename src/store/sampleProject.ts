@@ -35,9 +35,10 @@ export function createSampleProject(): ProjectData {
     openings: [createOpening('window', 0, 70, 120), { ...createOpening('door', 2, 280, 80), hinge: 'end' }],
   });
   const layoutId = createId('layout');
+  const planId = createId('plan');
   return {
-    rooms: [room],
-    layouts: [{ id: layoutId, name: 'Layout A', furniture: [desk, chair, sideboard, monitorLeft, monitorRight] }],
+    plans: [{ id: planId, rooms: [room] }],
+    layouts: [{ id: layoutId, name: 'Layout A', planId, furniture: [desk, chair, sideboard, monitorLeft, monitorRight] }],
     activeLayoutId: layoutId,
     settings: { ...DEFAULT_SETTINGS },
   };
@@ -46,9 +47,10 @@ export function createSampleProject(): ProjectData {
 /** A project with one empty room of the given size, at the plan origin. */
 export function createEmptyProject(width: number, depth: number, settings = DEFAULT_SETTINGS): ProjectData {
   const layoutId = createId('layout');
+  const planId = createId('plan');
   return {
-    rooms: [createRoom({ name: 'Room 1', width, depth })],
-    layouts: [{ id: layoutId, name: 'Layout A', furniture: [] }],
+    plans: [{ id: planId, rooms: [createRoom({ name: 'Room 1', width, depth })] }],
+    layouts: [{ id: layoutId, name: 'Layout A', planId, furniture: [] }],
     activeLayoutId: layoutId,
     settings: { ...settings },
   };

@@ -8,7 +8,7 @@ import { cornerTargets, snapPoint, snapRoomEdge, snapRoomMove } from '../plan/ro
 import { roomAnchor } from '../plan/rooms';
 import { roomBounds, translateRoom } from '../plan/shape';
 import { type WallFrame, pointOnWall, wallFrame } from '../plan/walls';
-import { projectStore } from '../store';
+import { projectStore, selectRooms } from '../store';
 import type { Room } from '../types';
 import { measureTextWidth } from '../utils/measureText';
 import { SNAP_DISTANCE_PX } from './dragLogic';
@@ -23,8 +23,13 @@ interface Props {
 
 type Drag = { kind: 'wall' | 'corner' | 'move'; index: number } | null;
 
-const currentRoom = (id: string) => projectStore.getState().rooms.find((r) => r.id === id);
-const otherRooms = (id: string) => projectStore.getState().rooms.filter((r) => r.id !== id);
+const currentRoom = (id: string) => selectRooms(projectStore.getState()).find((r) => r.id === id);
+const otherRooms = (id: string) => selectRooms(projectStore.getState()).filter((r) => r.id !== id);
+/** The room as it was when the current gesture started. */
+const roomAtGestureStart = (id: string) => {
+  const start = projectStore.getState().gesture;
+  return start ? selectRooms(start).find((r) => r.id === id) : undefined;
+};
 const flat = (points: readonly Point[]) => points.flatMap((p) => [p.x, p.y]);
 
 function setCursor(e: KonvaEventObject<MouseEvent>, cursor: string) {
@@ -75,12 +80,12 @@ export function RoomHandles({ room, scale }: Props) {
 
   // While a wall is dragged, its handle stays tied to the wall as it was when the drag began:
   // pushing out a bay adds walls, which renumbers them.
-  const base = (drag?.kind === 'wall' && projectStore.getState().gesture?.rooms.find((r) => r.id === room.id)) || room;
+  const base = (drag?.kind === 'wall' && roomAtGestureStart(room.id)) || room;
 
   const handleWallMove = (index: number) => (e: KonvaEventObject<DragEvent>) => {
     const node = e.target;
     const s = projectStore.getState();
-    const start = s.gesture?.rooms.find((r) => r.id === room.id);
+    const start = roomAtGestureStart(room.id);
     if (!start) return;
     const f = wallFrame(start, index);
     const out = { x: -f.inward.x, y: -f.inward.y };

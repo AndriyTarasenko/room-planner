@@ -58,7 +58,7 @@ export function saveProject(data: ProjectData): boolean {
 }
 
 const persistedChanged = (a: EditorState, b: EditorState) =>
-  a.rooms !== b.rooms || a.layouts !== b.layouts || a.activeLayoutId !== b.activeLayoutId || a.settings !== b.settings;
+  a.plans !== b.plans || a.layouts !== b.layouts || a.activeLayoutId !== b.activeLayoutId || a.settings !== b.settings;
 
 /**
  * Saves the project shortly after it changes. Skips saving mid-drag (the gesture end

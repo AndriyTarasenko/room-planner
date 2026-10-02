@@ -3,7 +3,7 @@ import { CircleCheck, Grid3x3, Keyboard, Lock, Maximize, Minus, Plus, RulerDimen
 import { useUi } from '../editor/uiStore';
 import { analyzeLayoutCached } from '../furniture/analysis';
 import { clampZoom } from '../geometry/viewport';
-import { projectStore, selectItems, selectSelectedItem, useEditor } from '../store';
+import { projectStore, selectItems, selectRooms, selectSelectedItem, useEditor } from '../store';
 import { GRID_SIZES, type GridSize, type Settings } from '../types';
 import { formatArea, formatPercent } from '../utils/format';
 import { useShortcutsPanel } from './shortcutsStore';
@@ -172,7 +172,7 @@ export function ShortcutsPanel() {
 /** Conflict summary and free floor space, top-left of the canvas. */
 export function CanvasStatus() {
   const items = useEditor(selectItems);
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const analysis = analyzeLayoutCached(items, rooms);
   const select = (id: string | undefined) => id && projectStore.getState().select(id);
 
@@ -226,7 +226,7 @@ export function CanvasHint() {
   const drawing = useUi((s) => s.tool === 'draw');
   const measuring = useUi((s) => s.tool === 'measure');
   const placing = useUi((s) => s.ruler.phase === 'placing');
-  const roomSelected = useEditor((s) => s.rooms.some((r) => r.id === s.selectedId));
+  const roomSelected = useEditor((s) => selectRooms(s).some((r) => r.id === s.selectedId));
   const itemSelected = useEditor((s) => selectSelectedItem(s) !== null);
   const text = drawing
     ? 'Click to place corners · click the first corner or press Enter to finish · Backspace undoes a corner · Esc stops'

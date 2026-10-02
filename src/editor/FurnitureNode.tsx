@@ -6,7 +6,7 @@ import { isCircle, localOutline } from '../geometry/footprint';
 import { localToWorld } from '../geometry/rect';
 import { ROTATION_STEP, rotationSnapAngles, snapRotation } from '../geometry/rotation';
 import { roomAt } from '../plan/rooms';
-import { projectStore, selectItems } from '../store';
+import { projectStore, selectItems, selectRooms } from '../store';
 import { ITEM_LIMITS } from '../store/defaults';
 import type { FurnitureItem } from '../types';
 import { shade } from '../utils/color';
@@ -84,7 +84,7 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     const current = currentItem(item.id);
     if (!current) return;
     const result = resolveDragPosition(current, node.position(), {
-      rooms: s.rooms,
+      rooms: selectRooms(s),
       items: selectItems(s),
       settings: s.settings,
       scale,
@@ -108,7 +108,7 @@ export const FurnitureNode = memo(function FurnitureNode({ item, scale, selected
     const current = currentItem(item.id);
     resizingCircle.current = current !== undefined && isCircle(current);
     if (current && transformerOf(e)?.getActiveAnchor() === 'rotater') {
-      snapAngles.current = rotationSnapAngles(roomAt(current, s.rooms).corners);
+      snapAngles.current = rotationSnapAngles(roomAt(current, selectRooms(s)).corners);
       useUi.getState().setRotating(item.id);
     }
   };

@@ -2,16 +2,17 @@ import { AlignHorizontalJustifyCenter, AlignVerticalJustifyCenter, Trash2 } from
 import { type Issue, analyzeLayoutCached } from '../furniture/analysis';
 import { OPENING_DEFAULTS, OPENING_LIMITS } from '../plan/openings';
 import { isMostlyHorizontal, startsAtPlanStart, wallEndLabels, wallFrame, wallNames } from '../plan/walls';
-import { projectStore, selectItems, useEditor } from '../store';
+import { projectStore, selectItems, selectRooms, useEditor } from '../store';
 import { OPENING_KINDS, type Opening, type OpeningKind, type Room } from '../types';
 import { IssueList } from './ItemInspector';
 import { OPENING_ICONS } from './planIcons';
+import { SharedPlanNote } from './SharedPlanNote';
 import { NumberField } from './ui/NumberField';
 import { Section, Segmented } from './ui/controls';
 
 /** Properties of the selected door, window or passage. */
 export function OpeningInspector({ opening, room }: { opening: Opening; room: Room }) {
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const items = useEditor(selectItems);
   const { updateOpening, deleteOpening, select } = projectStore.getState();
   const update = (patch: Parameters<typeof updateOpening>[1]) => updateOpening(opening.id, patch);
@@ -73,6 +74,7 @@ export function OpeningInspector({ opening, room }: { opening: Opening; room: Ro
             <Trash2 size={16} />
           </button>
         </div>
+        <SharedPlanNote />
       </div>
 
       {issues.length > 0 && (

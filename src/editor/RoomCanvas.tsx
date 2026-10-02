@@ -11,6 +11,7 @@ import { roomContaining } from '../plan/rooms';
 import {
   projectStore,
   selectItems,
+  selectRooms,
   selectSelectedOpening,
   selectSelectedOpeningRoom,
   selectSelectedRoom,
@@ -38,7 +39,7 @@ export function RoomCanvas() {
   const transformerRef = useRef<Konva.Transformer>(null);
   const size = useElementSize(containerRef);
 
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const items = useEditor(selectItems);
   const settings = useEditor((s) => s.settings);
   const selectedId = useEditor((s) => s.selectedId);

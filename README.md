@@ -6,7 +6,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 
 ## Features
 
-- **Floor plan**: one room or a whole apartment, with exact interior sizes in centimeters. **Room** under *Floor plan* adds a rectangular room: it docks to the right of the plan, sharing a wall, or goes wherever you drag it. Click a room to select it, then drag its name tag to move it (its furniture moves along, in every layout). Rooms snap together so neighbors share one wall. The canvas fits the plan to the screen, keeps real proportions, and supports zoom (mouse wheel) and pan (drag the floor or empty space).
+- **Floor plan**: one room or a whole apartment, with exact interior sizes in centimeters. **Room** under *Floor plan* adds a rectangular room: it docks to the right of the plan, sharing a wall, or goes wherever you drag it. Click a room to select it, then drag its name tag to move it (its furniture moves along, in every layout on that floor plan). Rooms snap together so neighbors share one wall. The canvas fits the plan to the screen, keeps real proportions, and supports zoom (mouse wheel) and pan (drag the floor or empty space).
 - **Rooms of any shape**: **Draw walls** draws a room wall by wall. Click to place each corner and click the first corner again (or press `Enter`, or double-click the last corner) to close it. Walls snap to horizontal, vertical and 45°, corners snap onto the corners of existing rooms so the new room can share their walls, and typing a number while drawing gives the next wall that exact length. Any room can also be reshaped: drag a wall to move it (the walls next to it keep their direction, so corners stay square), drag a corner anywhere for a slanted wall, double-click a wall to add a corner, and double-click a corner to remove it. Moving part of a split wall adds the short walls on either side, so a niche, a bay or a chimney breast takes two double-clicks and a drag. The inspector lists every wall with its length, which you can type in exactly.
 - **Walls**: each wall has its own thickness (12 cm by default, drawn outside the interior so interior sizes stay exact), or no wall at all. Walls meet in clean mitered corners at any angle. Switch off the outer wall of a balcony for its open side, or the walls between two rooms to join them into one open-plan space. Furniture can span such a seam.
 - **Doors, windows and passages**: click **Door**, **Window** or **Passage** to add one to the current room, or drag it onto a wall, slanted walls included. Drag it along the wall and around corners, or set its width and distance from either corner in the inspector. Doors have a hinge side and open into the room or outward. A door between two rooms cuts through the wall they share.
@@ -24,7 +24,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 - **Keeping furniture in its room**: with *Inside rooms* on, furniture stays inside the room it is in. Dragged far enough through a wall, it moves into the next room.
 - **Free floor**: the floor area not covered by furniture, per room and for the whole plan, in m² and as a percentage.
 - **Layout overview**: with nothing selected, the right panel sums up the layout and lists its rooms, issues and objects. Each list folds away with a click on its title and then shows how many entries it holds. This browser remembers which lists are folded.
-- **Layout variants**: tabs to create, duplicate, rename, delete and switch layouts. The floor plan (rooms, walls, doors, windows) is shared; each layout has its own furniture.
+- **Layout variants**: tabs to create, duplicate, rename, delete and switch layouts. Each layout has its own furniture. New and duplicated layouts share the floor plan (rooms, walls, doors, windows) of the layout they came from, so a wall fixed once is fixed in all of them. While a layout shares its floor plan, *Floor plan shared with …* shows under the Floor plan tools and in the room, door and window inspectors. Its **Unlink** button (or **Unlink floor plan** in the tab's ⋯ menu) gives the layout its own copy, so you can compare a knocked-out wall or a moved door without touching the other layouts. **Duplicate with its own floor plan** in the + and ⋯ menus does both in one step.
 - **Undo/redo**: covers moves, resizes, rotations, adds, deletes, property edits, room, wall, door and window changes, layout changes, "new plan" and imports.
 - **Persistence**: autosaves to `localStorage`, plus JSON export and import.
 
@@ -225,7 +225,7 @@ Room Planner has no server and no accounts. The floor plan, layouts, furniture a
 - **Clearing browser storage deletes your projects.** That includes clearing site data or "cookies and other site data". Private and incognito windows discard the project when they close. Safari may also clear storage for sites you haven't opened for a while.
 - **Export JSON is your backup.** **Export JSON** in the top bar downloads a file with the floor plan, every layout and the settings. **Import** loads that file in any browser and replaces the current project (`Ctrl+Z` undoes it). Use the pair to move a project to another computer, and export before clearing browser data.
 - **My furniture, favorites and recently used** are stored separately under `room-planner:catalog`. They are not part of project files, so they don't move with an export. Furniture already placed in a room does move with it, because each item carries its own dimensions.
-- **Older projects are upgraded automatically.** A project saved by an earlier version is migrated when it loads, and an untouched copy is kept under `room-planner:project:schema-<version>-backup` (for example `schema-2-backup` for projects saved before rooms, doors and windows existed, or `schema-3-backup` for projects saved before rooms could have any shape). A single-room project becomes a plan with that one room at the same place, so its furniture doesn't move, and rectangular rooms keep their doors and windows exactly where they were.
+- **Older projects are upgraded automatically.** A project saved by an earlier version is migrated when it loads, and an untouched copy is kept under `room-planner:project:schema-<version>-backup` (for example `schema-2-backup` for projects saved before rooms, doors and windows existed, `schema-3-backup` for projects saved before rooms could have any shape, or `schema-4-backup` for projects saved before layouts could have their own floor plan). A project from before separate floor plans becomes one floor plan that all its layouts share, as before. A single-room project becomes a plan with that one room at the same place, so its furniture doesn't move, and rectangular rooms keep their doors and windows exactly where they were.
 
 All project sites of one GitHub account share the origin `https://<username>.github.io`, and so share one `localStorage`. Two copies of Room Planner deployed under the same account would read and overwrite the same saved project.
 
@@ -265,13 +265,14 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
 
 - **Centimeters everywhere, degrees clockwise.** Items store the *center* of their footprint (`x`, `y`), which makes rotation trivial. The inspector's X/Y show the footprint's left and top edge instead, measured from the inner corner of the item's room, which equals the distance to its left and top wall and is what people actually think in.
 - **A floor plan is a list of room outlines.** Each room is a simple polygon of interior corners, stored clockwise, with one wall per edge: a thickness, drawn outside the interior, or left open. Rectangles are just rooms with four corners. That covers apartments, balconies (one wall open), L-shaped rooms, niches and slanted walls, and open-plan spaces (rooms joined by open walls) without a wall graph. Neighbors share a wall because snapping keeps the gap between them at the thicker of the two walls. Every outline edit (moving a wall or corner, adding or removing a corner, setting a wall's length) is a pure function in `plan/shape.ts` that refuses outlines whose walls would cross, so a drag simply stops there.
+- **Layouts point to a floor plan.** The project holds a list of floor plans, and each layout names one in `planId`. Several layouts on one plan see every room, wall and door change; moving or deleting a room carries or removes the furniture in all of them, and in no other layout. Unlinking adds a copy of the plan that keeps the room and opening ids, so a selected room stays selected when you switch between the two layouts. Because updates are immutable, the copy shares its rooms with the original until either one changes. A plan that no layout uses any more is dropped.
 - **Moving a wall keeps the angles.** A dragged wall moves parallel to itself and its neighbors get longer or shorter along their own direction, so a rectangle stays a rectangle and a 45° corner stays 45°. Where the neighbor runs along the same line (a wall that was split), a short wall is inserted instead, which is what makes a niche or a bay. Typing a wall's length moves the next wall the same way.
-- **Furniture belongs to a room by position.** Furniture is stored in plan coordinates, not per room. The room an item is in is the one containing its center, so moving an item into another room needs no bookkeeping. Moving a room carries the items inside it (in every layout); the set is decided when the drag starts, so a room dragged across other furniture doesn't pick it up.
+- **Furniture belongs to a room by position.** Furniture is stored in plan coordinates, not per room. The room an item is in is the one containing its center, so moving an item into another room needs no bookkeeping. Moving a room carries the items inside it (in every layout on that floor plan); the set is decided when the drag starts, so a room dragged across other furniture doesn't pick it up.
 - **Doors and windows belong to a wall.** An opening is stored as wall index + offset from the wall's start corner along the interior face, so it moves with its room and keeps its place when the room is reshaped: it keeps its distance from a corner that didn't move, or else its spot along the wall's line. Splitting or joining walls moves openings onto the right piece. Where two rooms share a wall (walls running along the same line), the gap is cut through both. A door's swing is a convex polygon, checked against furniture like a clearance zone.
 - **"On the floor" is an area test.** Furniture is inside when the part of its footprint (its real rotated shape, not a bounding box) covered by room floors equals the whole footprint, which works for concave rooms and for furniture spanning two rooms of an open-plan space. Keeping furniture inside pushes it out of the walls it pokes through, trying the shortest push through one wall or two (at a corner) first.
 - **Geometry is independent of React.** Collision detection, snapping, distances and coordinate conversion live in `src/geometry` as pure functions with unit tests. `furniture/rules.ts` adds domain meaning on top: monitors on a desk are not a collision, and a chair may stand in a desk's seating zone.
 - **One analysis pass per change.** `analyzeLayout()` computes collisions, clearance conflicts, out-of-room items and free floor space once. It is memoized on the immutable furniture array and shared by the canvas, the inspector and the status chips.
-- **Snapshot undo/redo.** The undoable document is `{ rooms, layouts, activeLayoutId }`. Updates are immutable, so snapshots share structure and cost almost nothing. A drag, resize or rotate (of furniture, a room or a door) is one "gesture" and becomes one undo step; repeated nudges and color-picker changes merge into one step.
+- **Snapshot undo/redo.** The undoable document is `{ plans, layouts, activeLayoutId }`. Updates are immutable, so snapshots share structure and cost almost nothing. A drag, resize or rotate (of furniture, a room or a door) is one "gesture" and becomes one undo step; repeated nudges and color-picker changes merge into one step.
 - **One selection.** Furniture, rooms and openings share `selectedId` (their ids never collide), and the inspector shows whichever is selected. New furniture without a drop position goes into the selected item's room, or else the room in the middle of the view.
 - **Two stores.** The persisted and undoable project lives in `store/`. Transient editor state (zoom, pan, snap guides, hover) lives in `editor/uiStore.ts`, so it never reaches history or storage. The view follows the plan as it changes until you zoom, pan or drag a room; then it stays put until you click *Fit plan*.
 - **Canvas coordinate systems.** Furniture is drawn in room coordinates inside a scaled Konva group, with non-scaling strokes. Labels and measurements are drawn in screen space so text stays crisp and a constant size at any zoom.
@@ -284,28 +285,33 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
 ```jsonc
 {
   "format": "room-planner-project",
-  "schemaVersion": 4,                      // older files (v1–v3) are migrated on import
+  "schemaVersion": 5,                      // older files (v1–v4) are migrated on import
   "exportedAt": "2026-09-30T12:00:00.000Z",
-  "rooms": [
+  "plans": [                               // floor plans; several layouts can share one
     {
-      "id": "…", "name": "Office",
-      "corners": [                         // interior corners in plan coordinates (cm), clockwise on screen
-        { "x": 0, "y": 0 }, { "x": 380, "y": 0 }, { "x": 380, "y": 320 }, { "x": 0, "y": 320 }
-      ],
-      "walls": [                           // one per corner: wall i runs from corner i to corner i + 1
-        { "kind": "wall", "thickness": 12 },  // top
-        { "kind": "wall", "thickness": 12 },  // right
-        { "kind": "open", "thickness": 12 },  // bottom, open (thickness kept for switching back)
-        { "kind": "wall", "thickness": 12 }   // left
-      ],
-      "openings": [
+      "id": "…",
+      "rooms": [
         {
-          "id": "…", "kind": "door",       // "door" | "window" | "passage"
-          "wall": 0,                       // index into "walls"
-          "offset": 70,                    // cm from the wall's start corner, along the wall
-          "width": 80,
-          "hinge": "start",                // doors: hinge at the "start" or "end" of the opening
-          "swing": "in"                    // doors: "in" (into this room) or "out"
+          "id": "…", "name": "Office",
+          "corners": [                         // interior corners in plan coordinates (cm), clockwise on screen
+            { "x": 0, "y": 0 }, { "x": 380, "y": 0 }, { "x": 380, "y": 320 }, { "x": 0, "y": 320 }
+          ],
+          "walls": [                           // one per corner: wall i runs from corner i to corner i + 1
+            { "kind": "wall", "thickness": 12 },  // top
+            { "kind": "wall", "thickness": 12 },  // right
+            { "kind": "open", "thickness": 12 },  // bottom, open (thickness kept for switching back)
+            { "kind": "wall", "thickness": 12 }   // left
+          ],
+          "openings": [
+            {
+              "id": "…", "kind": "door",       // "door" | "window" | "passage"
+              "wall": 0,                       // index into "walls"
+              "offset": 70,                    // cm from the wall's start corner, along the wall
+              "width": 80,
+              "hinge": "start",                // doors: hinge at the "start" or "end" of the opening
+              "swing": "in"                    // doors: "in" (into this room) or "out"
+            }
+          ]
         }
       ]
     }
@@ -314,6 +320,7 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
     {
       "id": "…",
       "name": "Layout A",
+      "planId": "…",                       // the floor plan this layout is arranged in
       "furniture": [
         {
           "id": "…", "type": "desk", "name": "Desk",

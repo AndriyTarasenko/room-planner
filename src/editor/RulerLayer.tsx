@@ -4,7 +4,7 @@ import { Circle, Group, Line, Rect } from 'react-konva';
 import type { Point } from '../geometry/rect';
 import { type Viewport, viewToWorld, worldToView } from '../geometry/viewport';
 import { type RulerSnap, rulerTargets, snapRulerPoint } from '../plan/ruler';
-import { selectItems, useEditor } from '../store';
+import { selectItems, selectRooms, useEditor } from '../store';
 import { formatNumber } from '../utils/format';
 import { SNAP_DISTANCE_PX } from './dragLogic';
 import { Pill } from './MeasurementsLayer';
@@ -21,7 +21,7 @@ const CLICK_SLOP_PX = 4;
  */
 export function RulerCapture({ vp, width, height }: { vp: Viewport; width: number; height: number }) {
   const pan = useUi((s) => s.pan);
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const items = useEditor(selectItems);
   const targets = useMemo(() => rulerTargets(rooms, items), [rooms, items]);
   /** Screen position of the press that started the measurement. */

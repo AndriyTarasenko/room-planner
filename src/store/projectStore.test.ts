@@ -5,7 +5,7 @@ import { openingAnchor } from '../plan/openings';
 import { roomAt } from '../plan/rooms';
 import { roomArea, roomBounds, roomRect } from '../plan/shape';
 import { findOpening } from './documentOps';
-import { createProjectStore, selectItems, selectProjectData } from './projectStore';
+import { createProjectStore, selectActiveLayout, selectItems, selectProjectData, selectRooms } from './projectStore';
 import { createEmptyProject, createSampleProject } from './sampleProject';
 import { ProjectFileError, parseProjectJson, serializeProject } from './serialization';
 
@@ -17,8 +17,8 @@ describe('sample project', () => {
   it('starts with a 380 × 320 room, desk, chair, two monitors and a sideboard', () => {
     const store = newStore();
     const s = store.getState();
-    expect(s.rooms).toHaveLength(1);
-    expect(roomRect(s.rooms[0])).toEqual({ x: 0, y: 0, width: 380, depth: 320 });
+    expect(selectRooms(s)).toHaveLength(1);
+    expect(roomRect(selectRooms(s)[0])).toEqual({ x: 0, y: 0, width: 380, depth: 320 });
     const types = itemsOf(store).map((i) => i.type).sort();
     expect(types).toEqual(['desk', 'monitor', 'monitor', 'office-chair', 'sideboard']);
   });
@@ -275,7 +275,7 @@ describe('import / export', () => {
         layouts: [{ name: '', furniture: [{ type: 'desk', width: 'wide', x: 10, y: 20, attachedTo: 'missing' }] }],
       }),
     );
-    expect(roomRect(parsed.rooms[0])).toMatchObject({ width: 420, depth: 50 });
+    expect(roomRect(parsed.plans[0].rooms[0])).toMatchObject({ width: 420, depth: 50 });
     const [desk] = parsed.layouts[0].furniture;
     expect(desk).toMatchObject({ type: 'desk', width: 140, depth: 80, x: 10, y: 20, attachedTo: null });
     expect(parsed.layouts[0].name).toBe('Layout 1');
@@ -286,14 +286,14 @@ describe('import / export', () => {
     const store = newStore();
     const imported = createEmptyProject(500, 400);
     store.getState().loadProject(imported);
-    expect(roomRect(store.getState().rooms[0])?.width).toBe(500);
+    expect(roomRect(selectRooms(store.getState())[0])?.width).toBe(500);
     store.getState().undo();
-    expect(roomRect(store.getState().rooms[0])?.width).toBe(380);
+    expect(roomRect(selectRooms(store.getState())[0])?.width).toBe(380);
   });
 });
 
 describe('floor plan', () => {
-  const roomOf = (store: ReturnType<typeof newStore>, id: string) => store.getState().rooms.find((r) => r.id === id)!;
+  const roomOf = (store: ReturnType<typeof newStore>, id: string) => selectRooms(store.getState()).find((r) => r.id === id)!;
   const itemById = (store: ReturnType<typeof newStore>, id: string) => itemsOf(store).find((i) => i.id === id)!;
 
   it('adds a room next to the plan, sharing a wall, as one undo step', () => {
@@ -303,7 +303,7 @@ describe('floor plan', () => {
     expect(roomRect(roomOf(store, id))).toEqual({ x: 392, y: 0, width: 300, depth: 300 });
     expect(store.getState().selectedId).toBe(id);
     store.getState().undo();
-    expect(store.getState().rooms).toHaveLength(1);
+    expect(selectRooms(store.getState())).toHaveLength(1);
     expect(store.getState().selectedId).toBeNull();
   });
 
@@ -318,12 +318,12 @@ describe('floor plan', () => {
     const store = newStore();
     const bedroom = store.getState().addRoom();
     const wardrobe = itemById(store, store.getState().addPreset('wardrobe')!);
-    expect(roomAt(wardrobe, store.getState().rooms).id).toBe(bedroom);
+    expect(roomAt(wardrobe, selectRooms(store.getState())).id).toBe(bedroom);
   });
 
   it('moves a room together with its furniture, in every layout', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     const desk = byName(store, 'Desk');
     const monitor = byName(store, 'Monitor left');
     store.getState().duplicateLayout(store.getState().activeLayoutId);
@@ -333,12 +333,12 @@ describe('floor plan', () => {
     store.getState().switchLayout(store.getState().layouts[0].id);
     expect(byName(store, 'Desk')).toMatchObject({ x: desk.x + 100, y: desk.y + 50 });
     // Doors and windows are part of the room.
-    expect(store.getState().rooms[0].openings).toEqual(office.openings);
+    expect(selectRooms(store.getState())[0].openings).toEqual(office.openings);
   });
 
   it('does not pick up other furniture while a room is dragged across it', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     const desk = byName(store, 'Desk');
     store.getState().addRoom();
     const wardrobe = itemById(store, store.getState().addPreset('wardrobe', { x: 500, y: 100 })!);
@@ -357,7 +357,7 @@ describe('floor plan', () => {
 
   it('keeps furniture, doors and windows in place when a wall is dragged', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     const window = office.openings.find((o) => o.kind === 'window')!;
     const desk = byName(store, 'Desk');
     store.getState().setRoomGeometry(office.id, { x: -50, width: 430 });
@@ -368,7 +368,7 @@ describe('floor plan', () => {
 
   it('keeps openings inside a room that gets smaller', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     store.getState().setRoomGeometry(office.id, { width: 100 });
     const window = roomOf(store, office.id).openings.find((o) => o.kind === 'window')!;
     expect(window).toMatchObject({ offset: 0, width: 100 });
@@ -379,24 +379,24 @@ describe('floor plan', () => {
     const bedroom = store.getState().addRoom();
     const wardrobe = store.getState().addPreset('wardrobe')!;
     store.getState().deleteRoom(bedroom);
-    expect(store.getState().rooms).toHaveLength(1);
+    expect(selectRooms(store.getState())).toHaveLength(1);
     expect(itemsOf(store).some((i) => i.id === wardrobe)).toBe(false);
     expect(itemsOf(store)).toHaveLength(5);
     store.getState().undo();
-    expect(store.getState().rooms).toHaveLength(2);
+    expect(selectRooms(store.getState())).toHaveLength(2);
     expect(itemsOf(store).some((i) => i.id === wardrobe)).toBe(true);
   });
 
   it('never deletes the last room', () => {
     const store = newStore();
-    store.getState().deleteRoom(store.getState().rooms[0].id);
-    expect(store.getState().rooms).toHaveLength(1);
+    store.getState().deleteRoom(selectRooms(store.getState())[0].id);
+    expect(selectRooms(store.getState())).toHaveLength(1);
     expect(store.getState().past).toHaveLength(0);
   });
 
   it('switches walls off and on, keeping their thickness', () => {
     const store = newStore();
-    const id = store.getState().rooms[0].id;
+    const id = selectRooms(store.getState())[0].id;
     store.getState().setWall(id, 2, { thickness: 30 });
     store.getState().setWall(id, 2, { kind: 'open' });
     expect(roomOf(store, id).walls[2]).toEqual({ kind: 'open', thickness: 30 });
@@ -408,34 +408,34 @@ describe('floor plan', () => {
 
   it('adds, edits and deletes doors and windows', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     store.getState().select(office.id);
     const id = store.getState().addOpening('door')!;
     expect(store.getState().selectedId).toBe(id);
-    expect(findOpening(store.getState().rooms, id)?.room.id).toBe(office.id);
+    expect(findOpening(selectRooms(store.getState()), id)?.room.id).toBe(office.id);
 
     store.getState().updateOpening(id, { wall: 3, offset: 10_000, hinge: 'end', swing: 'out' });
-    expect(findOpening(store.getState().rooms, id)?.opening).toMatchObject({ wall: 3, offset: 240, width: 80, hinge: 'end', swing: 'out' });
+    expect(findOpening(selectRooms(store.getState()), id)?.opening).toMatchObject({ wall: 3, offset: 240, width: 80, hinge: 'end', swing: 'out' });
 
     store.getState().deleteOpening(id);
-    expect(findOpening(store.getState().rooms, id)).toBeNull();
+    expect(findOpening(selectRooms(store.getState()), id)).toBeNull();
     expect(store.getState().selectedId).toBeNull();
     store.getState().undo();
-    expect(findOpening(store.getState().rooms, id)).not.toBeNull();
+    expect(findOpening(selectRooms(store.getState()), id)).not.toBeNull();
   });
 
   it('drops a window onto the nearest wall', () => {
     const store = newStore();
     const id = store.getState().addOpening('window', { at: { x: 370, y: 100 } })!;
-    expect(findOpening(store.getState().rooms, id)?.opening).toMatchObject({ kind: 'window', wall: 1, offset: 40, width: 120 });
+    expect(findOpening(selectRooms(store.getState()), id)?.opening).toMatchObject({ kind: 'window', wall: 1, offset: 40, width: 120 });
   });
 
   it('keeps an opening moved to the opposite wall at the same distance from the left corner', () => {
     const store = newStore();
-    const window = store.getState().rooms[0].openings.find((o) => o.kind === 'window')!;
+    const window = selectRooms(store.getState())[0].openings.find((o) => o.kind === 'window')!;
     // Top wall, 70 cm from the left corner; the bottom wall runs right to left.
     store.getState().updateOpening(window.id, { wall: 2 });
-    const moved = findOpening(store.getState().rooms, window.id)!;
+    const moved = findOpening(selectRooms(store.getState()), window.id)!;
     expect(openingAnchor(moved.room, moved.opening)).toEqual({ x: 130, y: 320 });
     expect(moved.opening.hinge).toBe('end');
   });
@@ -455,7 +455,7 @@ describe('floor plan', () => {
     expect(roomArea(roomOf(store, id))).toBe(500 * 400 - 200 * 200);
     expect(store.getState().selectedId).toBe(id);
     store.getState().undo();
-    expect(store.getState().rooms).toHaveLength(1);
+    expect(selectRooms(store.getState())).toHaveLength(1);
     // Walls crossing each other aren't a room.
     const pastBefore = store.getState().past.length;
     expect(store.getState().addDrawnRoom([{ x: 0, y: 0 }, { x: 100, y: 100 }, { x: 100, y: 0 }, { x: 0, y: 100 }])).toBeNull();
@@ -464,7 +464,7 @@ describe('floor plan', () => {
 
   it('reshapes a room: a niche pulled into a split wall is one undo step', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     // The bottom wall runs from right to left: corners at x 180, then at x 280.
     expect(store.getState().splitRoomWall(office.id, 2, 200)).toBe(3);
     expect(store.getState().splitRoomWall(office.id, 2, 100)).toBe(3);
@@ -488,7 +488,7 @@ describe('floor plan', () => {
 
   it('sets wall lengths and removes corners', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     store.getState().setRoomWallLength(office.id, 0, 400);
     expect(roomRect(roomOf(store, office.id))).toEqual({ x: 0, y: 0, width: 400, depth: 320 });
     const corner = store.getState().splitRoomWall(office.id, 1, 100)!;
@@ -501,7 +501,7 @@ describe('floor plan', () => {
 
   it('keeps a selected room selected across undo and layout switches', () => {
     const store = newStore();
-    const office = store.getState().rooms[0];
+    const office = selectRooms(store.getState())[0];
     store.getState().select(office.id);
     store.getState().setRoomGeometry(office.id, { width: 400 });
     store.getState().undo();
@@ -510,5 +510,116 @@ describe('floor plan', () => {
     store.getState().select(office.id);
     store.getState().switchLayout(store.getState().layouts[0].id);
     expect(store.getState().selectedId).toBe(office.id);
+  });
+});
+
+describe('floor plans of layouts', () => {
+  const layoutNamed = (store: ReturnType<typeof newStore>, name: string) => store.getState().layouts.find((l) => l.name === name)!;
+  const office = (store: ReturnType<typeof newStore>) => selectRooms(store.getState())[0];
+
+  it('shares the floor plan with new and duplicated layouts', () => {
+    const store = newStore();
+    store.getState().createLayout();
+    store.getState().duplicateLayout(store.getState().activeLayoutId);
+    const { plans, layouts } = store.getState();
+    expect(plans).toHaveLength(1);
+    expect(layouts.map((l) => l.planId)).toEqual([plans[0].id, plans[0].id, plans[0].id]);
+    // A wall changed in one layout is changed in all of them.
+    store.getState().setRoomWallLength(office(store).id, 0, 400);
+    store.getState().switchLayout(layouts[0].id);
+    expect(roomRect(office(store))?.width).toBe(400);
+  });
+
+  it('duplicates a layout with its own floor plan, leaving the original plan alone', () => {
+    const store = newStore();
+    const a = store.getState().activeLayoutId;
+    const room = office(store);
+    store.getState().select(room.id);
+    store.getState().duplicateLayout(a, { ownPlan: true });
+    const copy = store.getState().activeLayoutId;
+    expect(store.getState().plans).toHaveLength(2);
+    expect(itemsOf(store)).toHaveLength(5);
+    // Same rooms, so a room selected in one layout stays selected in the other.
+    expect(office(store)).toEqual(room);
+    store.getState().setRoomWallLength(room.id, 0, 450);
+    store.getState().addRoom();
+    expect(selectRooms(store.getState())).toHaveLength(2);
+    // The new room isn't in the original layout, so it doesn't stay selected there.
+    store.getState().switchLayout(a);
+    expect(selectRooms(store.getState())).toEqual([room]);
+    expect(store.getState().selectedId).toBeNull();
+    store.getState().switchLayout(copy);
+    store.getState().select(room.id);
+    store.getState().switchLayout(a);
+    expect(store.getState().selectedId).toBe(room.id);
+    store.getState().switchLayout(copy);
+    expect(roomRect(office(store))?.width).toBe(450);
+  });
+
+  it('unlinks a shared floor plan as one undo step', () => {
+    const store = newStore();
+    store.getState().createLayout();
+    const b = store.getState().activeLayoutId;
+    const pastBefore = store.getState().past.length;
+    store.getState().unlinkPlan(b);
+    expect(store.getState().plans).toHaveLength(2);
+    expect(store.getState().past).toHaveLength(pastBefore + 1);
+    store.getState().addOpening('window', { roomId: office(store).id });
+    expect(office(store).openings).toHaveLength(3);
+    store.getState().switchLayout(layoutNamed(store, 'Layout A').id);
+    expect(office(store).openings).toHaveLength(2);
+    // A layout with a plan of its own has nothing to unlink.
+    store.getState().unlinkPlan(store.getState().activeLayoutId);
+    expect(store.getState().plans).toHaveLength(2);
+
+    store.getState().switchLayout(b);
+    store.getState().undo();
+    store.getState().undo();
+    expect(store.getState().plans).toHaveLength(1);
+    expect(new Set(store.getState().layouts.map((l) => l.planId)).size).toBe(1);
+  });
+
+  it('moves and deletes rooms only in the layouts on that floor plan', () => {
+    const store = newStore();
+    const a = store.getState().activeLayoutId;
+    const desk = byName(store, 'Desk');
+    store.getState().duplicateLayout(a, { ownPlan: true });
+    store.getState().setRoomGeometry(office(store).id, { x: 100 }, { carry: true });
+    expect(byName(store, 'Desk').x).toBe(desk.x + 100);
+    const bedroom = store.getState().addRoom();
+    store.getState().addPreset('wardrobe');
+    store.getState().deleteRoom(bedroom);
+    store.getState().switchLayout(a);
+    expect(byName(store, 'Desk').x).toBe(desk.x);
+    expect(roomBounds(office(store)).minX).toBe(0);
+    expect(itemsOf(store)).toHaveLength(5);
+  });
+
+  it('adds a new layout on the current layout’s floor plan', () => {
+    const store = newStore();
+    store.getState().duplicateLayout(store.getState().activeLayoutId, { ownPlan: true });
+    const ownPlan = selectActiveLayout(store.getState()).planId;
+    store.getState().createLayout();
+    expect(selectActiveLayout(store.getState()).planId).toBe(ownPlan);
+  });
+
+  it('drops a floor plan when its last layout is deleted, and undo brings both back', () => {
+    const store = newStore();
+    store.getState().duplicateLayout(store.getState().activeLayoutId, { ownPlan: true });
+    const copy = selectActiveLayout(store.getState());
+    store.getState().deleteLayout(copy.id);
+    expect(store.getState().plans).toHaveLength(1);
+    expect(store.getState().plans[0].id).toBe(store.getState().layouts[0].planId);
+    store.getState().undo();
+    expect(store.getState().plans.map((p) => p.id)).toContain(copy.planId);
+  });
+
+  it('round-trips layouts with floor plans of their own', () => {
+    const store = newStore();
+    store.getState().duplicateLayout(store.getState().activeLayoutId, { ownPlan: true });
+    store.getState().addRoom();
+    store.getState().createLayout();
+    const data = selectProjectData(store.getState());
+    expect(parseProjectJson(serializeProject(data))).toEqual(data);
   });
 });

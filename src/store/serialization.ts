@@ -14,6 +14,7 @@ import { DEFAULT_WALL_THICKNESS, WALL_LIMITS, defaultWall, defaultWalls } from '
 import {
   type Category,
   type Clearance,
+  type FloorPlan,
   FURNITURE_TYPES,
   type FurnitureItem,
   GRID_SIZES,
@@ -43,7 +44,7 @@ export function toProjectFile(data: ProjectData): ProjectFile {
     format: PROJECT_FILE_FORMAT,
     schemaVersion: PROJECT_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
-    rooms: data.rooms,
+    plans: data.plans,
     layouts: data.layouts,
     activeLayoutId: data.activeLayoutId,
     settings: data.settings,
@@ -96,6 +97,12 @@ export function migrateProject(raw: Json): Json {
     // v3 → v4: rectangles became polygons.
     data = { ...data, schemaVersion: 4, ...(Array.isArray(data.rooms) ? { rooms: data.rooms.map((r) => (isObject(r) ? migrateRectRoom(r) : r)) } : {}) };
   }
+  if (from < 5) {
+    // v4 → v5: the rooms became the one floor plan that every layout shares. Layouts without
+    // a `planId` use the first plan, so they need no change.
+    const { rooms, ...rest } = data;
+    data = { ...rest, schemaVersion: 5, ...(rooms !== undefined ? { plans: [{ id: createId('plan'), rooms }] } : {}) };
+  }
   return data;
 }
 
@@ -135,15 +142,41 @@ export function parseProjectData(input: unknown): ProjectData {
     throw new ProjectFileError('This JSON file is not a Room Planner project.');
   }
   const raw = migrateProject(input);
-  const roomsRaw = Array.isArray(raw.rooms) ? raw.rooms.filter(isObject) : [];
-  if (roomsRaw.length === 0) throw new ProjectFileError('The project has no rooms.');
+  const plansRaw = Array.isArray(raw.plans) ? raw.plans.filter(isObject) : [];
+  // A plan without rooms can't be shown; layouts on it move to the first plan.
+  const parsed = plansRaw.map(parsePlan).filter((p) => p.plan.rooms.length > 0);
+  if (parsed.length === 0) throw new ProjectFileError('The project has no rooms.');
   if (!Array.isArray(raw.layouts) || raw.layouts.length === 0) throw new ProjectFileError('The project has no layouts.');
 
-  // Rooms, openings and furniture share one selection, so their ids must not collide.
   const planIds = new Set<string>();
+  for (const p of parsed) {
+    if (planIds.has(p.plan.id)) p.plan.id = createId('plan');
+    planIds.add(p.plan.id);
+  }
+  const roomIdsOf = new Map(parsed.map((p) => [p.plan.id, p.ids]));
+  const layouts = dedupeLayoutIds(
+    raw.layouts.map((l, i) => {
+      const planId = isObject(l) && typeof l.planId === 'string' && planIds.has(l.planId) ? l.planId : parsed[0].plan.id;
+      return parseLayout(l, i, planId, roomIdsOf.get(planId)!);
+    }),
+  );
+  const used = new Set(layouts.map((l) => l.planId));
+  const plans = parsed.map((p) => p.plan).filter((p) => used.has(p.id));
+  const activeLayoutId =
+    typeof raw.activeLayoutId === 'string' && layouts.some((l) => l.id === raw.activeLayoutId)
+      ? raw.activeLayoutId
+      : layouts[0].id;
+  return { plans, layouts, activeLayoutId, settings: parseSettings(raw.settings) };
+}
+
+/** A floor plan, and the ids its rooms and openings use (furniture on it must not reuse them). */
+function parsePlan(raw: Json): { plan: FloorPlan; ids: Set<string> } {
+  const roomsRaw = Array.isArray(raw.rooms) ? raw.rooms.filter(isObject) : [];
+  // Rooms, openings and furniture share one selection, so their ids must not collide.
+  const ids = new Set<string>();
   const unique = (id: string, prefix: string) => {
-    const result = planIds.has(id) ? createId(prefix) : id;
-    planIds.add(result);
+    const result = ids.has(id) ? createId(prefix) : id;
+    ids.add(result);
     return result;
   };
   const rooms = roomsRaw.map((r, i) => {
@@ -152,12 +185,7 @@ export function parseProjectData(input: unknown): ProjectData {
     for (const o of room.openings) o.id = unique(o.id, 'opening');
     return room;
   });
-  const layouts = dedupeLayoutIds(raw.layouts.map((l, i) => parseLayout(l, i, planIds)));
-  const activeLayoutId =
-    typeof raw.activeLayoutId === 'string' && layouts.some((l) => l.id === raw.activeLayoutId)
-      ? raw.activeLayoutId
-      : layouts[0].id;
-  return { rooms, layouts, activeLayoutId, settings: parseSettings(raw.settings) };
+  return { plan: { id: str(raw.id, '', 100) || createId('plan'), rooms }, ids };
 }
 
 /**
@@ -211,7 +239,7 @@ function parseOpening(raw: Json): Opening {
   };
 }
 
-function parseLayout(raw: unknown, index: number, reservedIds: ReadonlySet<string>): Layout {
+function parseLayout(raw: unknown, index: number, planId: string, reservedIds: ReadonlySet<string>): Layout {
   if (!isObject(raw)) throw new ProjectFileError(`Layout ${index + 1} is invalid.`);
   const furnitureRaw = Array.isArray(raw.furniture) ? raw.furniture : [];
   const furniture = furnitureRaw.filter(isObject).map(parseFurniture);
@@ -228,6 +256,7 @@ function parseLayout(raw: unknown, index: number, reservedIds: ReadonlySet<strin
   return {
     id: str(raw.id, '', 100) || createId('layout'),
     name: str(raw.name, '', 80).trim() || `Layout ${index + 1}`,
+    planId,
     furniture,
   };
 }

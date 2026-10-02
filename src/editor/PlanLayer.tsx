@@ -8,7 +8,7 @@ import type { Point } from '../geometry/rect';
 import { type Viewport, worldToView } from '../geometry/viewport';
 import { roomArea, roomBounds, roomRect } from '../plan/shape';
 import { alongWall, pointOnWall, wallFrame, wallPolygons, wallThickness } from '../plan/walls';
-import { projectStore } from '../store';
+import { projectStore, selectRooms } from '../store';
 import type { Room, Settings } from '../types';
 import { formatArea, formatSize } from '../utils/format';
 import { measureTextWidth } from '../utils/measureText';
@@ -26,7 +26,7 @@ const selectRoom = (id: string) => () => projectStore.getState().select(id);
  */
 const splitWallAtPointer = (roomId: string, wall: number) => (e: KonvaEventObject<MouseEvent>) => {
   const s = projectStore.getState();
-  const room = s.rooms.find((r) => r.id === roomId);
+  const room = selectRooms(s).find((r) => r.id === roomId);
   const p = e.target.getParent()?.getRelativePointerPosition();
   if (!room || !p) return;
   e.cancelBubble = true;

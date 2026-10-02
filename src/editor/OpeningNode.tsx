@@ -4,7 +4,7 @@ import { Group, Line, Rect } from 'react-konva';
 import { type Point, worldToLocal } from '../geometry/rect';
 import { doorSwing, openingAnchor, openingCut, resolveOpeningDrag } from '../plan/openings';
 import { wallFrame } from '../plan/walls';
-import { projectStore } from '../store';
+import { projectStore, selectRooms } from '../store';
 import { findOpening } from '../store/documentOps';
 import type { Opening, Room } from '../types';
 import { SNAP_DISTANCE_PX } from './dragLogic';
@@ -21,7 +21,7 @@ interface Props {
   blocked: boolean;
 }
 
-const currentOpening = (id: string) => findOpening(projectStore.getState().rooms, id);
+const currentOpening = (id: string) => findOpening(selectRooms(projectStore.getState()), id);
 
 function setCursor(e: KonvaEventObject<MouseEvent>, cursor: string) {
   const container = e.target.getStage()?.container();

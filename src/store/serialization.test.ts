@@ -77,9 +77,9 @@ describe('project schema', () => {
 
     const project = parseProjectJson(JSON.stringify(V1_FILE));
     expect(project.layouts[0].furniture[0]).toEqual(V1_FILE.layouts[0].furniture[0]);
-    expect(project.rooms).toHaveLength(1);
-    expect(project.rooms[0]).toMatchObject({ id: V1_FILE.room.id, openings: [] });
-    expect(roomRect(project.rooms[0])).toEqual({ x: 0, y: 0, width: V1_FILE.room.width, depth: V1_FILE.room.depth });
+    expect(project.plans[0].rooms).toHaveLength(1);
+    expect(project.plans[0].rooms[0]).toMatchObject({ id: V1_FILE.room.id, openings: [] });
+    expect(roomRect(project.plans[0].rooms[0])).toEqual({ x: 0, y: 0, width: V1_FILE.room.width, depth: V1_FILE.room.depth });
   });
 
   it('treats files without any version as version 1', () => {
@@ -149,13 +149,13 @@ const V2_FILE = {
 describe('floor plans in project files', () => {
   it('migrates a version 2 project to one room at the plan origin, keeping the furniture as it was', () => {
     const project = parseProjectJson(JSON.stringify(V2_FILE));
-    expect(project.rooms).toEqual([{ id: 'room_1', name: 'Room 1', corners: rectCorners(0, 0, 400, 300), walls: defaultWalls(), openings: [] }]);
+    expect(project.plans[0].rooms).toEqual([{ id: 'room_1', name: 'Room 1', corners: rectCorners(0, 0, 400, 300), walls: defaultWalls(), openings: [] }]);
     expect(project.layouts[0].furniture[0]).toEqual(V1_FILE.layouts[0].furniture[0]);
   });
 
   it('round-trips rooms, walls, doors and windows', () => {
     const project = createSampleProject();
-    project.rooms.push(
+    project.plans[0].rooms.push(
       createRoom({
         name: 'Balcony',
         y: 332,
@@ -174,7 +174,7 @@ describe('floor plans in project files', () => {
       { x: 0, y: 782 },
     ]);
     odd.openings = [createOpening('window', 1, 20, 100)];
-    project.rooms.push(odd);
+    project.plans[0].rooms.push(odd);
     expect(parseProjectJson(serializeProject(project))).toEqual(project);
   });
 
@@ -200,7 +200,7 @@ describe('floor plans in project files', () => {
         },
       ],
     };
-    const [room] = parseProjectJson(JSON.stringify(file)).rooms;
+    const [room] = parseProjectJson(JSON.stringify(file)).plans[0].rooms;
     expect(room.corners).toEqual(rectCorners(100, 50, 380, 320));
     expect(room.walls).toEqual([
       { kind: 'wall', thickness: 12 },
@@ -221,8 +221,8 @@ describe('floor plans in project files', () => {
     const project = createSampleProject();
     const file = JSON.parse(serializeProject(project));
     // Counter-clockwise corners are turned around, keeping openings where they are.
-    const room = file.rooms[0];
-    const before = project.rooms[0].openings.map((o) => openingAnchor(project.rooms[0], o));
+    const room = file.plans[0].rooms[0];
+    const before = project.plans[0].rooms[0].openings.map((o) => openingAnchor(project.plans[0].rooms[0], o));
     const n = room.corners.length;
     room.corners = [...room.corners].reverse();
     room.walls = [...room.walls].reverse();
@@ -232,12 +232,12 @@ describe('floor plans in project files', () => {
       offset: (o.wall % 2 === 0 ? 380 : 320) - o.offset - o.width,
       hinge: o.hinge === 'start' ? 'end' : 'start',
     }));
-    const turned = parseProjectJson(JSON.stringify(file)).rooms[0];
-    expect(turned.corners).toEqual(project.rooms[0].corners);
+    const turned = parseProjectJson(JSON.stringify(file)).plans[0].rooms[0];
+    expect(turned.corners).toEqual(project.plans[0].rooms[0].corners);
     expect(turned.openings.map((o) => openingAnchor(turned, o))).toEqual(before);
     // Walls crossing each other: the bounding rectangle, without openings.
     room.corners = [{ x: 0, y: 0 }, { x: 300, y: 200 }, { x: 300, y: 0 }, { x: 0, y: 200 }];
-    const repaired = parseProjectJson(JSON.stringify(file)).rooms[0];
+    const repaired = parseProjectJson(JSON.stringify(file)).plans[0].rooms[0];
     expect(roomRect(repaired)).toEqual({ x: 0, y: 0, width: 300, depth: 200 });
     expect(repaired.openings).toEqual([]);
   });
@@ -259,7 +259,7 @@ describe('floor plans in project files', () => {
         { id: 'a', x: 'far', width: 200, depth: 200 },
       ],
     };
-    const [first, second] = parseProjectJson(JSON.stringify(file)).rooms;
+    const [first, second] = parseProjectJson(JSON.stringify(file)).plans[0].rooms;
     expect(first).toMatchObject({ id: 'a', name: 'Room 1' });
     expect(roomRect(first)).toEqual({ x: 0, y: 0, width: 380, depth: 50 });
     expect(first.walls[0]).toEqual({ kind: 'wall', thickness: 100 });
@@ -275,15 +275,78 @@ describe('floor plans in project files', () => {
 
   it('gives furniture a new id when it clashes with a room or opening', () => {
     const project = createSampleProject();
-    const clash = project.rooms[0].openings[0].id;
+    const clash = project.plans[0].rooms[0].openings[0].id;
     project.layouts[0].furniture[2].id = clash;
     const parsed = parseProjectJson(serializeProject(project));
-    expect(parsed.rooms[0].openings[0].id).toBe(clash);
+    expect(parsed.plans[0].rooms[0].openings[0].id).toBe(clash);
     expect(parsed.layouts[0].furniture[2].id).not.toBe(clash);
   });
 
   it('rejects a project without rooms', () => {
     expect(() => parseProjectJson(JSON.stringify({ schemaVersion: 3, rooms: [], layouts: [{}] }))).toThrow(/no rooms/);
+    expect(() => parseProjectJson(JSON.stringify({ schemaVersion: 5, plans: [{ id: 'p', rooms: [] }], layouts: [{}] }))).toThrow(/no rooms/);
+  });
+});
+
+describe('floor plans of layouts in project files', () => {
+  /** The sample project as version 4 saved it: one list of rooms, shared by all layouts. */
+  function v4File() {
+    const project = createSampleProject();
+    const file = JSON.parse(serializeProject(project));
+    const { plans, ...rest } = file;
+    const layouts = [...file.layouts, { ...file.layouts[0], id: 'layout_b', name: 'Layout B' }].map(({ planId: _planId, ...l }) => l);
+    return { project, file: { ...rest, schemaVersion: 4, rooms: plans[0].rooms, layouts } };
+  }
+
+  it('migrates version 4 rooms to one floor plan that every layout shares', () => {
+    const { project, file } = v4File();
+    const parsed = parseProjectJson(JSON.stringify(file));
+    expect(parsed.plans).toHaveLength(1);
+    expect(parsed.plans[0].rooms).toEqual(project.plans[0].rooms);
+    expect(parsed.layouts.map((l) => l.planId)).toEqual([parsed.plans[0].id, parsed.plans[0].id]);
+    expect(parsed.layouts[0].furniture).toEqual(project.layouts[0].furniture);
+  });
+
+  it('keeps layouts on their own floor plans', () => {
+    const project = createSampleProject();
+    const [plan] = project.plans;
+    const other = { id: 'plan_b', rooms: [createRoom({ name: 'Studio', width: 500, depth: 400 })] };
+    project.plans.push(other);
+    project.layouts.push({ id: 'layout_b', name: 'Layout B', planId: other.id, furniture: [] });
+    const parsed = parseProjectJson(serializeProject(project));
+    expect(parsed).toEqual(project);
+    expect(parsed.layouts.map((l) => l.planId)).toEqual([plan.id, other.id]);
+  });
+
+  it('repairs floor plan references', () => {
+    const project = createSampleProject();
+    const file = JSON.parse(serializeProject(project));
+    const [plan] = file.plans;
+    file.plans.push({ id: 'unused', rooms: plan.rooms }, { id: 'empty', rooms: [] }, { id: plan.id, rooms: plan.rooms });
+    file.layouts.push(
+      { id: 'b', name: 'B', planId: 'missing', furniture: [] },
+      { id: 'c', name: 'C', planId: 'empty', furniture: [] },
+      { id: 'd', name: 'D', furniture: [] },
+    );
+    const parsed = parseProjectJson(JSON.stringify(file));
+    // Layouts on a missing or empty plan, or without one, go to the first plan; unused plans are dropped.
+    expect(parsed.plans.map((p) => p.id)).toEqual([plan.id]);
+    expect(new Set(parsed.layouts.map((l) => l.planId))).toEqual(new Set([plan.id]));
+  });
+
+  it('checks furniture ids against the rooms of its own floor plan', () => {
+    const project = createSampleProject();
+    const other = { id: 'plan_b', rooms: [createRoom({ name: 'Studio', width: 500, depth: 400 })] };
+    project.plans.push(other);
+    const otherRoom = other.rooms[0].id;
+    const ownRoom = project.plans[0].rooms[0].id;
+    project.layouts[0].furniture[0].id = otherRoom;
+    project.layouts.push({ id: 'layout_b', name: 'Layout B', planId: other.id, furniture: [{ ...project.layouts[0].furniture[1], id: otherRoom }] });
+    project.layouts[0].furniture[1].id = ownRoom;
+    const parsed = parseProjectJson(serializeProject(project));
+    expect(parsed.layouts[0].furniture[0].id).toBe(otherRoom);
+    expect(parsed.layouts[0].furniture[1].id).not.toBe(ownRoom);
+    expect(parsed.layouts[1].furniture[0].id).not.toBe(otherRoom);
   });
 });
 
@@ -293,7 +356,7 @@ describe('stored projects', () => {
     const text = JSON.stringify(V2_FILE);
     storage.setItem(STORAGE_KEY, text);
     const project = withLocalStorage(storage, loadStoredProject);
-    expect(roomRect(project!.rooms[0])).toEqual({ x: 0, y: 0, width: 400, depth: 300 });
+    expect(roomRect(project!.plans[0].rooms[0])).toEqual({ x: 0, y: 0, width: 400, depth: 300 });
     expect(storage.getItem(legacyBackupKey(2))).toBe(text);
   });
 

@@ -4,7 +4,7 @@ import { type Issue, analyzeLayoutCached, doorName } from '../furniture/analysis
 import { useCollapsedGroups } from '../hooks/useCollapsedGroups';
 import { roomArea, roomRect } from '../plan/shape';
 import type { Room } from '../types';
-import { projectStore, selectActiveLayout, useEditor } from '../store';
+import { projectStore, selectActiveLayout, selectRooms, useEditor } from '../store';
 import type { FurnitureItem } from '../types';
 import { isCircle } from '../geometry/footprint';
 import { formatArea, formatFootprint, formatPercent, formatSize } from '../utils/format';
@@ -24,7 +24,7 @@ function roomSize(room: Room): string {
 /** Right panel when nothing is selected: summary, rooms, issues and the object list. */
 export function LayoutOverview() {
   const layout = useEditor(selectActiveLayout);
-  const rooms = useEditor((s) => s.rooms);
+  const rooms = useEditor(selectRooms);
   const items = layout.furniture;
   const analysis = analyzeLayoutCached(items, rooms);
   const select = (id: string) => projectStore.getState().select(id);

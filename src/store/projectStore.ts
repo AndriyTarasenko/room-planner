@@ -37,6 +37,7 @@ import { POSITION_LIMIT, ROOM_LIMITS } from './defaults';
 import {
   type Geometry,
   type RoomGeometry,
+  activeRooms,
   applyGeometry,
   applyRoomGeometry,
   bringToFront,
@@ -44,14 +45,19 @@ import {
   duplicateItem,
   findOpening,
   getActiveLayout,
+  getActivePlan,
+  layoutsSharingPlan,
   mapActiveFurniture,
+  mapActiveRooms,
   mapRoom,
   nextLayoutName,
+  prunePlans,
   removeItem,
   removeRoom,
   replaceRoom,
   sendBackward,
   uniqueCopyName,
+  unlinkPlan,
 } from './documentOps';
 import { createEmptyProject } from './sampleProject';
 
@@ -115,7 +121,8 @@ export interface EditorState extends ProjectData {
   renameRoom(id: string, name: string): void;
   /**
    * Moves a room, or moves and resizes a rectangular one. `carry` moves its furniture (in all
-   * layouts) along; use it when the room is moved as a whole, not when one wall is dragged.
+   * layouts on this floor plan) along; use it when the room is moved as a whole, not when one
+   * wall is dragged.
    */
   setRoomGeometry(id: string, patch: Partial<RoomGeometry>, options?: { carry?: boolean; coalesceKey?: string }): void;
   /**
@@ -132,7 +139,7 @@ export interface EditorState extends ProjectData {
   /** Removes a corner, joining its two walls. False when that isn't possible (a triangle, or walls would cross). */
   removeRoomCorner(id: string, corner: number): boolean;
   setWall(roomId: string, wall: number, patch: Partial<Wall>): void;
-  /** Deletes a room with its furniture in all layouts. The last room can't be deleted. */
+  /** Deletes a room with its furniture in all layouts on this floor plan. The last room can't be deleted. */
   deleteRoom(id: string): void;
 
   /** Adds a door, window or passage: onto the wall nearest to `at`, or into a free stretch of wall in `roomId` (default: the focus room). */
@@ -145,8 +152,12 @@ export interface EditorState extends ProjectData {
   /** Ends a gesture; for dragged surface items, attaches them to the host underneath. */
   endGesture(draggedId?: string): void;
 
+  /** Adds an empty layout on the active layout's floor plan. */
   createLayout(): void;
-  duplicateLayout(id: string): void;
+  /** Copies a layout's furniture, on the same floor plan or (`ownPlan`) on a copy of it. */
+  duplicateLayout(id: string, options?: { ownPlan?: boolean }): void;
+  /** Gives a layout its own copy of the floor plan it shares with other layouts. */
+  unlinkPlan(layoutId: string): void;
   renameLayout(id: string, name: string): void;
   deleteLayout(id: string): void;
   switchLayout(id: string): void;
@@ -161,13 +172,13 @@ export interface EditorState extends ProjectData {
 }
 
 const docOf = (s: ProjectDocument): ProjectDocument => ({
-  rooms: s.rooms,
+  plans: s.plans,
   layouts: s.layouts,
   activeLayoutId: s.activeLayoutId,
 });
 
 const sameDoc = (a: ProjectDocument, b: ProjectDocument) =>
-  a.rooms === b.rooms && a.layouts === b.layouts && a.activeLayoutId === b.activeLayoutId;
+  a.plans === b.plans && a.layouts === b.layouts && a.activeLayoutId === b.activeLayoutId;
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 const clampRoom = (v: number) => round1(Math.min(ROOM_LIMITS.max, Math.max(ROOM_LIMITS.min, v)));
@@ -177,21 +188,23 @@ const clampWall = (v: number) => round1(Math.min(WALL_LIMITS.max, Math.max(WALL_
 const sameOpening = (a: Opening, b: Opening) =>
   a.kind === b.kind && a.wall === b.wall && a.offset === b.offset && a.width === b.width && a.hinge === b.hinge && a.swing === b.swing;
 
-/** Keeps a selection only if it still exists: an item of the active layout, a room, or an opening. */
+/** Keeps a selection only if it still exists: an item of the active layout, or a room or opening of its floor plan. */
 function validSelection(doc: ProjectDocument, id: string | null): string | null {
   if (!id) return null;
   if (getActiveLayout(doc).furniture.some((i) => i.id === id)) return id;
-  if (doc.rooms.some((r) => r.id === id)) return id;
-  return findOpening(doc.rooms, id) ? id : null;
+  const rooms = activeRooms(doc);
+  if (rooms.some((r) => r.id === id)) return id;
+  return findOpening(rooms, id) ? id : null;
 }
 
 /** The room a selection belongs to. */
 function roomOfSelection(doc: ProjectDocument, id: string | null): string | null {
   if (!id) return null;
+  const rooms = activeRooms(doc);
   const item = getActiveLayout(doc).furniture.find((i) => i.id === id);
-  if (item) return roomForBox(footprintBox(item), doc.rooms)?.id ?? null;
-  if (doc.rooms.some((r) => r.id === id)) return id;
-  return findOpening(doc.rooms, id)?.room.id ?? null;
+  if (item) return roomForBox(footprintBox(item), rooms)?.id ?? null;
+  if (rooms.some((r) => r.id === id)) return id;
+  return findOpening(rooms, id)?.room.id ?? null;
 }
 
 export function createProjectStore(initial: ProjectData) {
@@ -227,12 +240,14 @@ export function createProjectStore(initial: ProjectData) {
 
     const items = () => getActiveLayout(get()).furniture;
     const findItem = (id: string) => items().find((i) => i.id === id);
-    const roomsForClamp = () => (get().settings.constrainToRoom ? get().rooms : null);
+    const rooms = () => activeRooms(get());
+    const findRoom = (id: string) => rooms().find((r) => r.id === id);
+    const roomsForClamp = () => (get().settings.constrainToRoom ? rooms() : null);
     /** Where new things go when no position is given: the selection's room, else the focus room. */
     const targetRoom = (): Room => {
       const s = get();
       const id = roomOfSelection(s, s.selectedId) ?? s.focusRoomId;
-      return s.rooms.find((r) => r.id === id) ?? s.rooms[0];
+      return rooms().find((r) => r.id === id) ?? rooms()[0];
     };
     const defaultSpot = () => roomAnchor(targetRoom());
 
@@ -322,7 +337,7 @@ export function createProjectStore(initial: ProjectData) {
         const s = get();
         let placed = item;
         if (options.findSpot !== false) {
-          const room = options.preferred ? roomAt(options.preferred, s.rooms) : targetRoom();
+          const room = options.preferred ? roomAt(options.preferred, activeRooms(s)) : targetRoom();
           placed = { ...item, ...findFreeSpot(item, room.corners, items(), options.preferred) };
         }
         commit((doc) => mapActiveFurniture(doc, (list) => [...list, placed]), { select: placed.id });
@@ -372,7 +387,7 @@ export function createProjectStore(initial: ProjectData) {
         const width = size.width ?? item.width;
         const depth = size.depth ?? item.depth;
         if (width === item.width && depth === item.depth && Object.keys(extra).length === 0) return;
-        const center = anchoredResizeCenter(item, width, depth, roomForBox(footprintBox(item), get().rooms).corners);
+        const center = anchoredResizeCenter(item, width, depth, roomForBox(footprintBox(item), rooms()).corners);
         let shape = extra.shape ?? item.shape;
         if (shape.kind === 'l') {
           shape = {
@@ -422,7 +437,7 @@ export function createProjectStore(initial: ProjectData) {
             const result = duplicateItem(list, id, 20, 20);
             newId = result.newId;
             if (newId && get().settings.constrainToRoom) {
-              return applyGeometry(result.items, newId, {}, get().rooms);
+              return applyGeometry(result.items, newId, {}, rooms());
             }
             return result.items;
           }),
@@ -446,37 +461,36 @@ export function createProjectStore(initial: ProjectData) {
         ),
 
       addRoom: (options = {}) => {
-        const s = get();
+        const plan = rooms();
         const width = clampRoom(options.width ?? NEW_ROOM_SIZE.width);
         const depth = clampRoom(options.depth ?? NEW_ROOM_SIZE.depth);
         const walls = defaultWalls();
         let position: Point;
         if (options.at) {
           const proposed = createRoom({ width, depth, walls, x: Math.round(options.at.x - width / 2), y: Math.round(options.at.y - depth / 2) });
-          const snap = snapRoomMove(proposed, s.rooms, 40);
+          const snap = snapRoomMove(proposed, plan, 40);
           const b = roomBounds(proposed);
           position = { x: b.minX + snap.dx, y: b.minY + snap.dy };
         } else {
-          position = dockedRoomPosition(s.rooms, walls);
+          position = dockedRoomPosition(plan, walls);
         }
         const room = createRoom({
-          name: options.name ?? nextRoomName(s.rooms),
+          name: options.name ?? nextRoomName(plan),
           width,
           depth,
           walls,
           x: clampPosition(position.x),
           y: clampPosition(position.y),
         });
-        commit((doc) => ({ ...doc, rooms: [...doc.rooms, room] }), { select: room.id });
+        commit((doc) => mapActiveRooms(doc, (list) => [...list, room]), { select: room.id });
         set({ focusRoomId: room.id });
         return room.id;
       },
 
       addDrawnRoom: (corners) => {
-        const s = get();
-        const room = createRoomFromCorners(corners, { name: nextRoomName(s.rooms) });
+        const room = createRoomFromCorners(corners, { name: nextRoomName(rooms()) });
         if (!isValidOutline(room.corners)) return null;
-        commit((doc) => ({ ...doc, rooms: [...doc.rooms, room] }), { select: room.id });
+        commit((doc) => mapActiveRooms(doc, (list) => [...list, room]), { select: room.id });
         set({ focusRoomId: room.id });
         return room.id;
       },
@@ -501,10 +515,10 @@ export function createProjectStore(initial: ProjectData) {
         ),
 
       moveRoomWall: (id, wall, distance, options = {}) => {
-        const s = get();
-        const current = s.rooms.find((r) => r.id === id);
+        const gesture = get().gesture;
+        const current = findRoom(id);
         // Within a gesture, start from the room as it was, so a pushed-out bay is only added once.
-        const base = s.gesture?.rooms.find((r) => r.id === id) ?? current;
+        const base = (gesture && activeRooms(gesture).find((r) => r.id === id)) ?? current;
         if (!current || !base) return false;
         const next = moveWall(base, wall, distance);
         // An impossible shape (walls crossing) keeps the last good one.
@@ -514,19 +528,19 @@ export function createProjectStore(initial: ProjectData) {
       },
 
       moveRoomCorner: (id, corner, to, options = {}) => {
-        const room = get().rooms.find((r) => r.id === id);
+        const room = findRoom(id);
         if (!room) return;
         commit((doc) => replaceRoom(doc, doc, moveCorner(room, corner, to), false), { coalesceKey: options.coalesceKey });
       },
 
       setRoomWallLength: (id, wall, length) => {
-        const room = get().rooms.find((r) => r.id === id);
+        const room = findRoom(id);
         if (!room) return;
         commit((doc) => replaceRoom(doc, doc, setWallLength(room, wall, length), false));
       },
 
       splitRoomWall: (id, wall, t) => {
-        const room = get().rooms.find((r) => r.id === id);
+        const room = findRoom(id);
         if (!room) return null;
         const next = splitWall(room, wall, t);
         if (next === room) return null;
@@ -535,7 +549,7 @@ export function createProjectStore(initial: ProjectData) {
       },
 
       removeRoomCorner: (id, corner) => {
-        const room = get().rooms.find((r) => r.id === id);
+        const room = findRoom(id);
         if (!room) return false;
         const next = removeCorner(room, corner);
         if (next === room) return false;
@@ -564,17 +578,16 @@ export function createProjectStore(initial: ProjectData) {
       },
 
       addOpening: (kind, options = {}) => {
-        const s = get();
         const width = OPENING_DEFAULTS[kind].width;
         let room: Room | undefined;
         let opening: Opening;
         if (options.at) {
-          const target = openingDropTarget(s.rooms, options.at, width);
+          const target = openingDropTarget(rooms(), options.at, width);
           if (!target) return null;
           room = target.room;
           opening = createOpening(kind, target.placement.wall, target.placement.offset, target.placement.width);
         } else {
-          room = (options.roomId && s.rooms.find((r) => r.id === options.roomId)) || targetRoom();
+          room = (options.roomId && findRoom(options.roomId)) || targetRoom();
           if (!room) return null;
           const placement = freeOpeningPlacement(room, width);
           opening = createOpening(kind, placement.wall, placement.offset, placement.width);
@@ -588,7 +601,7 @@ export function createProjectStore(initial: ProjectData) {
       updateOpening: (id, patch, options = {}) =>
         commit(
           (doc) => {
-            const found = findOpening(doc.rooms, id);
+            const found = findOpening(activeRooms(doc), id);
             if (!found) return doc;
             return mapRoom(doc, found.room.id, (room) => {
               let merged: Opening = { ...found.opening, ...patch, id };
@@ -614,7 +627,7 @@ export function createProjectStore(initial: ProjectData) {
       deleteOpening: (id) =>
         commit(
           (doc) => {
-            const found = findOpening(doc.rooms, id);
+            const found = findOpening(activeRooms(doc), id);
             if (!found) return doc;
             return mapRoom(doc, found.room.id, (room) => ({ ...room, openings: room.openings.filter((o) => o.id !== id) }));
           },
@@ -649,25 +662,31 @@ export function createProjectStore(initial: ProjectData) {
       },
 
       createLayout: () => {
-        const layout = { id: createId('layout'), name: nextLayoutName(get().layouts), furniture: [] };
+        const s = get();
+        const layout = { id: createId('layout'), name: nextLayoutName(s.layouts), planId: getActivePlan(s).id, furniture: [] };
         commit((doc) => ({ ...doc, layouts: [...doc.layouts, layout], activeLayoutId: layout.id }), { select: null });
       },
 
-      duplicateLayout: (id) => {
+      duplicateLayout: (id, options = {}) => {
         const s = get();
         const source = s.layouts.find((l) => l.id === id);
         if (!source) return;
         const copy = cloneLayout(source, uniqueCopyName(source.name, s.layouts));
         const idx = s.layouts.indexOf(source);
         commit(
-          (doc) => ({
-            ...doc,
-            layouts: [...doc.layouts.slice(0, idx + 1), copy, ...doc.layouts.slice(idx + 1)],
-            activeLayoutId: copy.id,
-          }),
+          (doc) => {
+            const next = {
+              ...doc,
+              layouts: [...doc.layouts.slice(0, idx + 1), copy, ...doc.layouts.slice(idx + 1)],
+              activeLayoutId: copy.id,
+            };
+            return options.ownPlan ? unlinkPlan(next, copy.id) : next;
+          },
           { select: null },
         );
       },
+
+      unlinkPlan: (layoutId) => commit((doc) => unlinkPlan(doc, layoutId)),
 
       renameLayout: (id, name) => {
         const trimmed = name.trim().slice(0, 80);
@@ -686,7 +705,7 @@ export function createProjectStore(initial: ProjectData) {
         if (idx < 0) return;
         const remaining = s.layouts.filter((l) => l.id !== id);
         const activeLayoutId = s.activeLayoutId === id ? remaining[Math.max(0, idx - 1)].id : s.activeLayoutId;
-        commit((doc) => ({ ...doc, layouts: remaining, activeLayoutId }), {
+        commit((doc) => prunePlans({ ...doc, layouts: remaining, activeLayoutId }), {
           select: s.activeLayoutId === id ? null : s.selectedId,
         });
       },
@@ -695,7 +714,8 @@ export function createProjectStore(initial: ProjectData) {
         const s = get();
         if (id === s.activeLayoutId || !s.layouts.some((l) => l.id === id)) return;
         // Switching views is not an edit, so it is not recorded; undo restores the layout
-        // that was active when a change happened. Rooms and openings stay selected.
+        // that was active when a change happened. Rooms and openings stay selected when the
+        // other layout has them too (it shares the floor plan, or has a copy of it).
         const next = { ...docOf(s), activeLayoutId: id };
         set({ activeLayoutId: id, selectedId: validSelection(next, s.selectedId), lastEdit: null });
       },
@@ -739,10 +759,14 @@ export type ProjectStore = ReturnType<typeof createProjectStore>;
 
 export const selectActiveLayout = (s: EditorState) => getActiveLayout(s);
 export const selectItems = (s: EditorState) => getActiveLayout(s).furniture;
+/** Rooms of the active layout's floor plan. */
+export const selectRooms = (s: ProjectDocument) => activeRooms(s);
+/** Names of the other layouts on the active layout's floor plan (a new array: select it with `useShallow`). */
+export const selectPlanSharedWith = (s: EditorState) => layoutsSharingPlan(s, s.activeLayoutId).map((l) => l.name);
 export const selectSelectedItem = (s: EditorState) =>
   s.selectedId ? (getActiveLayout(s).furniture.find((i) => i.id === s.selectedId) ?? null) : null;
-export const selectSelectedRoom = (s: EditorState) => (s.selectedId ? (s.rooms.find((r) => r.id === s.selectedId) ?? null) : null);
-export const selectSelectedOpening = (s: EditorState) => (s.selectedId ? (findOpening(s.rooms, s.selectedId)?.opening ?? null) : null);
+export const selectSelectedRoom = (s: EditorState) => (s.selectedId ? (activeRooms(s).find((r) => r.id === s.selectedId) ?? null) : null);
+export const selectSelectedOpening = (s: EditorState) => (s.selectedId ? (findOpening(activeRooms(s), s.selectedId)?.opening ?? null) : null);
 /** The room that owns the selected opening. */
-export const selectSelectedOpeningRoom = (s: EditorState) => (s.selectedId ? (findOpening(s.rooms, s.selectedId)?.room ?? null) : null);
+export const selectSelectedOpeningRoom = (s: EditorState) => (s.selectedId ? (findOpening(activeRooms(s), s.selectedId)?.room ?? null) : null);
 export const selectProjectData = (s: EditorState): ProjectData => ({ ...docOf(s), settings: s.settings });
