@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AboutDialog } from './components/AboutDialog';
-import { CanvasHint, CanvasStatus, CanvasToolbar, ZoomBar } from './components/CanvasOverlays';
+import { CanvasHint, CanvasStatus, CanvasToolbar, ShortcutsPanel, ZoomBar } from './components/CanvasOverlays';
 import { ItemInspector } from './components/ItemInspector';
 import { LayoutOverview } from './components/LayoutOverview';
 import { LeftSidebar } from './components/LeftSidebar';
@@ -26,6 +26,8 @@ export function App() {
         <RoomCanvas />
         <CanvasStatus />
         <CanvasHint />
+        {/* Before the toolbars, so their tooltips show on top of it. */}
+        <ShortcutsPanel />
         <CanvasToolbar />
         <ZoomBar />
       </main>

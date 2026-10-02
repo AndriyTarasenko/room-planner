@@ -1,31 +1,32 @@
 import { useState } from 'react';
 
-const STORAGE_KEY = 'room-planner:library-collapsed';
-
-/** Folded library groups are a convenience: when storage is unavailable they just aren't remembered. */
-function load(): Set<string> {
+/** Folded groups are a convenience: when storage is unavailable they just aren't remembered. */
+function load(storageKey: string): Set<string> {
   try {
-    const raw: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
+    const raw: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
     return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : []);
   } catch {
     return new Set();
   }
 }
 
-function save(groups: ReadonlySet<string>) {
+function save(storageKey: string, groups: ReadonlySet<string>) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...groups]));
+    localStorage.setItem(storageKey, JSON.stringify([...groups]));
   } catch {
     // Private mode or full storage.
   }
 }
 
-/** Which furniture library groups (categories, "recent") are collapsed, remembered in this browser. */
-export function useCollapsedGroups() {
-  const [collapsed, setCollapsed] = useState(load);
+/**
+ * Which groups of a panel (library categories, overview sections) are collapsed, remembered in
+ * this browser under `storageKey`.
+ */
+export function useCollapsedGroups(storageKey: string) {
+  const [collapsed, setCollapsed] = useState(() => load(storageKey));
   const update = (next: Set<string>) => {
     setCollapsed(next);
-    save(next);
+    save(storageKey, next);
   };
   return {
     collapsed: collapsed as ReadonlySet<string>,

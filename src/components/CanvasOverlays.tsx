@@ -1,11 +1,26 @@
 import type { ReactNode } from 'react';
-import { CircleCheck, Grid3x3, Lock, Maximize, Minus, Plus, RulerDimensionLine, Scan } from 'lucide-react';
+import { CircleCheck, Grid3x3, Keyboard, Lock, Maximize, Minus, Plus, RulerDimensionLine, Scan, X } from 'lucide-react';
 import { useUi } from '../editor/uiStore';
 import { analyzeLayoutCached } from '../furniture/analysis';
 import { clampZoom } from '../geometry/viewport';
 import { projectStore, selectItems, selectSelectedItem, useEditor } from '../store';
 import { GRID_SIZES, type GridSize, type Settings } from '../types';
 import { formatArea, formatPercent } from '../utils/format';
+import { useShortcutsPanel } from './shortcutsStore';
+
+const SHORTCUTS: [string[], string][] = [
+  [['Ctrl', 'Z'], 'Undo'],
+  [['Ctrl', 'Y'], 'Redo'],
+  [['R'], 'Rotate 90° (Shift: back)'],
+  [['[', ']'], 'Rotate 15° (Shift: 1°)'],
+  [['Ctrl', 'D'], 'Duplicate'],
+  [['Del'], 'Delete'],
+  [['←', '→', '↑', '↓'], 'Nudge 1 cm (Shift: 10)'],
+  [['M'], 'Measure (Ruler)'],
+  [['Alt'], 'Drag without snapping'],
+  [['Esc'], 'Deselect'],
+  [['?'], 'Show or hide this list'],
+];
 
 /** Toggle for a boolean setting. With an icon, the text collapses away on narrow canvases. */
 function Chip({ settingKey, icon, children, tip }: { settingKey: keyof Settings; icon?: ReactNode; children: ReactNode; tip: string }) {
@@ -80,6 +95,8 @@ export function CanvasToolbar() {
 export function ZoomBar() {
   const zoom = useUi((s) => s.zoom);
   const { setView, resetView } = useUi.getState();
+  const shortcutsOpen = useShortcutsPanel((s) => s.open);
+  const toggleShortcuts = useShortcutsPanel((s) => s.toggle);
   // Buttons zoom around the view center.
   const zoomBy = (factor: number) => {
     const next = clampZoom(zoom * factor);
@@ -104,7 +121,51 @@ export function ZoomBar() {
           <Maximize size={14} />
         </button>
       </div>
+      <div className="divider-v" />
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Keyboard shortcuts"
+        aria-pressed={shortcutsOpen}
+        data-tip="Keyboard shortcuts (?)"
+        data-tip-pos="top"
+        data-tip-align="end"
+        onClick={toggleShortcuts}
+      >
+        <Keyboard size={15} />
+      </button>
     </div>
+  );
+}
+
+/** Keyboard shortcuts over the bottom-right of the canvas, above the zoom bar. */
+export function ShortcutsPanel() {
+  const open = useShortcutsPanel((s) => s.open);
+  const toggle = useShortcutsPanel((s) => s.toggle);
+  if (!open) return null;
+  return (
+    <section className="shortcuts-panel" aria-label="Keyboard shortcuts">
+      <div className="shortcuts-panel-header">
+        <h3 className="section-title" style={{ margin: 0 }}>
+          Shortcuts
+        </h3>
+        <button type="button" className="icon-btn" aria-label="Hide shortcuts" data-tip="Hide (?)" onClick={toggle}>
+          <X size={14} />
+        </button>
+      </div>
+      <div className="shortcuts">
+        {SHORTCUTS.map(([keys, label]) => (
+          <div key={label} style={{ display: 'contents' }}>
+            <span className="kbd-group">
+              {keys.map((k) => (
+                <kbd key={k}>{k}</kbd>
+              ))}
+            </span>
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

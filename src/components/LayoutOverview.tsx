@@ -1,5 +1,7 @@
 import { CircleCheck } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { type Issue, analyzeLayoutCached, doorName } from '../furniture/analysis';
+import { useCollapsedGroups } from '../hooks/useCollapsedGroups';
 import { roomArea, roomRect } from '../plan/shape';
 import type { Room } from '../types';
 import { projectStore, selectActiveLayout, useEditor } from '../store';
@@ -10,32 +12,29 @@ import { IssueList } from './ItemInspector';
 import { ROOM_ICON } from './planIcons';
 import { Section } from './ui/controls';
 
-const SHORTCUTS: [string[], string][] = [
-  [['Ctrl', 'Z'], 'Undo'],
-  [['Ctrl', 'Y'], 'Redo'],
-  [['R'], 'Rotate 90° (Shift: back)'],
-  [['[', ']'], 'Rotate 15° (Shift: 1°)'],
-  [['Ctrl', 'D'], 'Duplicate'],
-  [['Del'], 'Delete'],
-  [['←', '→', '↑', '↓'], 'Nudge 1 cm (Shift: 10)'],
-  [['M'], 'Measure (Ruler)'],
-  [['Alt'], 'Hold while dragging: no snapping'],
-  [['Esc'], 'Deselect'],
-];
+/** Which overview sections are folded, remembered in this browser. */
+const OVERVIEW_COLLAPSED_KEY = 'room-planner:overview-collapsed';
 
-/** Right panel when nothing is selected: summary, rooms, issues and the object list. */
 /** "380 × 320" for a rectangular room; other shapes are described by their area alone. */
 function roomSize(room: Room): string {
   const rect = roomRect(room);
   return rect ? formatSize(rect.width, rect.depth) : '';
 }
 
+/** Right panel when nothing is selected: summary, rooms, issues and the object list. */
 export function LayoutOverview() {
   const layout = useEditor(selectActiveLayout);
   const rooms = useEditor((s) => s.rooms);
   const items = layout.furniture;
   const analysis = analyzeLayoutCached(items, rooms);
   const select = (id: string) => projectStore.getState().select(id);
+  const { collapsed, toggle } = useCollapsedGroups(OVERVIEW_COLLAPSED_KEY);
+  // A folded section shows how many entries it hides instead of its usual note.
+  const folding = (id: string, count: number, aside?: ReactNode) => ({
+    collapsed: collapsed.has(id),
+    onToggle: () => toggle(id),
+    aside: collapsed.has(id) ? <span className="section-hint num">{count}</span> : aside,
+  });
 
   const byId = new Map(items.map((i) => [i.id, i]));
   const roomById = new Map(rooms.map((r) => [r.id, r]));
@@ -96,7 +95,7 @@ export function LayoutOverview() {
         </div>
       </Section>
 
-      <Section title="Rooms" aside={<span className="section-hint">click to edit</span>}>
+      <Section title="Rooms" {...folding('rooms', rooms.length, <span className="section-hint">click to edit</span>)}>
         <div className="object-list">
           {rooms.map((room) => {
             const usage = analysis.roomUsage.get(room.id);
@@ -114,7 +113,7 @@ export function LayoutOverview() {
         </div>
       </Section>
 
-      <Section title="Issues">
+      <Section title="Issues" {...folding('issues', described.length)}>
         {described.length > 0 ? (
           <IssueList issues={described} onSelect={(issue) => select(issue.itemId)} />
         ) : (
@@ -125,7 +124,7 @@ export function LayoutOverview() {
         )}
       </Section>
 
-      <Section title="Objects">
+      <Section title="Objects" {...folding('objects', items.length)}>
         {items.length === 0 ? (
           <p className="empty-note" style={{ margin: 0 }}>
             This layout is empty. Add furniture from the library on the left.
@@ -142,21 +141,6 @@ export function LayoutOverview() {
             ))}
           </div>
         )}
-      </Section>
-
-      <Section title="Shortcuts">
-        <div className="shortcuts">
-          {SHORTCUTS.map(([keys, label]) => (
-            <div key={label} style={{ display: 'contents' }}>
-              <span className="kbd-group">
-                {keys.map((k) => (
-                  <kbd key={k}>{k}</kbd>
-                ))}
-              </span>
-              <span>{label}</span>
-            </div>
-          ))}
-        </div>
       </Section>
     </div>
   );

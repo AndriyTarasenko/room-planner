@@ -191,6 +191,36 @@ button {
   font-size: 11.5px;
 }
 
+.section.collapsed {
+  padding-bottom: 14px;
+}
+
+.section.collapsed .section-header {
+  margin-bottom: 0;
+}
+
+/* The title of a section that folds away; the chevron hangs into the padding. */
+.section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  margin: -1px 0 -1px -4px;
+  padding: 0 6px 0 2px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  letter-spacing: inherit;
+}
+
+.section-toggle svg {
+  color: var(--text-3);
+}
+
+.section-toggle:hover {
+  background: var(--field);
+}
+
 .muted {
   color: var(--text-3);
 }
@@ -363,6 +393,13 @@ button {
 [data-tip-pos='top']:hover::after {
   top: auto;
   bottom: calc(100% + 6px);
+}
+
+/* For buttons at the right edge of a clipping box: the tip grows leftward. */
+[data-tip-align='end']:hover::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 @keyframes tip-in {
@@ -1337,6 +1374,40 @@ textarea.text-input {
 
 .zoom-bar {
   right: 14px;
+}
+
+.zoom-bar .icon-btn[aria-pressed='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* Sits above the zoom bar (14px inset + 36px bar + 8px gap) and below the hint. */
+.shortcuts-panel {
+  position: absolute;
+  right: 14px;
+  bottom: 58px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  width: 268px;
+  max-height: calc(100% - 58px - 48px);
+  padding: 8px 12px 12px;
+  background: var(--panel);
+  border-radius: 8px;
+  box-shadow: var(--shadow-float);
+}
+
+.shortcuts-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 -6px 6px 0;
+}
+
+/* Scrolls on a short canvas; the header (and its tooltip) stays outside the scroll box. */
+.shortcuts-panel .shortcuts {
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* Narrow canvas: icon-only chips (they keep their tooltips) and no hint. */

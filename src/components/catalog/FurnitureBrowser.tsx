@@ -11,11 +11,13 @@ import { ImportProductDialog } from './ImportProductDialog';
 import { LiveSearchSection } from './LiveSearchSection';
 import { ProductDetailsDialog } from './ProductDetailsDialog';
 import { ProductRow } from './ProductRow';
-import { useCollapsedGroups } from './useCollapsedGroups';
+import { useCollapsedGroups } from '../../hooks/useCollapsedGroups';
 
 const isDefined = <T,>(v: T | undefined): v is T => v !== undefined;
 
 const RECENT_GROUP = 'recent';
+/** Which library groups are folded, remembered in this browser. */
+const LIBRARY_COLLAPSED_KEY = 'room-planner:library-collapsed';
 
 interface GroupProps {
   title: string;
@@ -50,7 +52,7 @@ export function FurnitureBrowser() {
   const [details, setDetails] = useState<FurnitureProduct | null>(null);
   const [importing, setImporting] = useState<LiveProductCandidate | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
-  const { collapsed, toggle, collapseOnly } = useCollapsedGroups();
+  const { collapsed, toggle, collapseOnly } = useCollapsedGroups(LIBRARY_COLLAPSED_KEY);
 
   const saved = useUserCatalog((s) => s.products);
   const favorites = useUserCatalog((s) => s.favorites);

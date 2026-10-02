@@ -23,11 +23,14 @@ Everything runs in the browser. There is no backend and no account; the project 
 - **Door swings**: furniture standing where a door opens is flagged in amber, with the blocked door named in the issue list.
 - **Keeping furniture in its room**: with *Inside rooms* on, furniture stays inside the room it is in. Dragged far enough through a wall, it moves into the next room.
 - **Free floor**: the floor area not covered by furniture, per room and for the whole plan, in m² and as a percentage.
+- **Layout overview**: with nothing selected, the right panel sums up the layout and lists its rooms, issues and objects. Each list folds away with a click on its title and then shows how many entries it holds. This browser remembers which lists are folded.
 - **Layout variants**: tabs to create, duplicate, rename, delete and switch layouts. The floor plan (rooms, walls, doors, windows) is shared; each layout has its own furniture.
 - **Undo/redo**: covers moves, resizes, rotations, adds, deletes, property edits, room, wall, door and window changes, layout changes, "new plan" and imports.
 - **Persistence**: autosaves to `localStorage`, plus JSON export and import.
 
 ### Keyboard shortcuts
+
+The most used ones are listed in a panel at the bottom right of the canvas. `?` or the keyboard button next to the zoom hides and shows it, and this browser remembers your choice.
 
 | Keys | Action |
 | --- | --- |
@@ -41,6 +44,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 | Arrow keys (`Shift` for 10 cm) | Nudge 1 cm. A room moves with its furniture; a door or window slides along its wall |
 | `Alt` while dragging | No snapping (on the rotate handle: no sticking to diagonals and walls) |
 | `Shift` on the rotate handle | Turn in 15° steps |
+| `?` | Show or hide the shortcuts panel |
 
 While drawing walls:
 
@@ -250,7 +254,7 @@ src/
                 "Draw walls" tool, the Ruler, furniture nodes, labels, measurements, clearance/collision
                 overlays, drag logic, transient UI state
   components/   Top bar, layout tabs, library, inspector, dialogs, UI primitives
-  hooks/        Keyboard shortcuts, element size, commit-on-unmount for fields
+  hooks/        Keyboard shortcuts, element size, commit-on-unmount for fields, folded groups
   utils/        Formatting, colors, ids, number parsing, file helpers
   appInfo.ts    Version, build hash and source URL, injected by vite.config.ts
 docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mapping

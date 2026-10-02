@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type ReactNode, useRef, useState } from 'react';
 import { useCommitOnUnmount } from '../../hooks/useCommitOnUnmount';
 
@@ -90,16 +91,36 @@ export function TextField({ value, onCommit, label, placeholder, className = 'te
   );
 }
 
-export function Section({ title, aside, children }: { title?: ReactNode; aside?: ReactNode; children: ReactNode }) {
+interface SectionProps {
+  title?: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
+  /** With `onToggle`, the title folds the section away and `collapsed` says whether it is. */
+  collapsed?: boolean;
+  onToggle?: () => void;
+}
+
+export function Section({ title, aside, children, collapsed = false, onToggle }: SectionProps) {
   return (
-    <section className="section">
+    <section className={collapsed ? 'section collapsed' : 'section'}>
       {(title || aside) && (
         <div className="section-header">
-          {title && <h3 className="section-title" style={{ margin: 0 }}>{title}</h3>}
+          {title && (
+            <h3 className="section-title" style={{ margin: 0 }}>
+              {onToggle ? (
+                <button type="button" className="section-toggle" aria-expanded={!collapsed} onClick={onToggle}>
+                  {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                  {title}
+                </button>
+              ) : (
+                title
+              )}
+            </h3>
+          )}
           {aside}
         </div>
       )}
-      {children}
+      {!collapsed && children}
     </section>
   );
 }
