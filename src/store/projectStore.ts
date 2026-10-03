@@ -1,4 +1,5 @@
 import { createStore } from 'zustand/vanilla';
+import { applyProductEdit } from '../catalog/editProduct';
 import { productToItem } from '../catalog/productToItem';
 import type { FurnitureProduct } from '../catalog/types';
 import { CATEGORIES } from '../furniture/categories';
@@ -11,7 +12,7 @@ import {
   placeOnHost,
 } from '../furniture/factory';
 import { findPreset } from '../furniture/presets';
-import { canHostSurfaceItems, defaultHost, findHostUnder, isDesk } from '../furniture/rules';
+import { canHostSurfaceItems, defaultHost, findHostUnder, goesOnHosts, isDesk } from '../furniture/rules';
 import { footprintBox } from '../geometry/footprint';
 import { anchoredResizeCenter } from '../geometry/resize';
 import type { Point } from '../geometry/rect';
@@ -113,6 +114,11 @@ export interface EditorState extends ProjectData {
   bringToFront(id: string): void;
   sendBackward(id: string): void;
   attachTo(id: string, parentId: string | null): void;
+  /**
+   * Carries an edit of a saved product over to its placed copies in every layout, as one undo
+   * step (see `applyProductEdit`). Returns how many copies changed.
+   */
+  updatePlacedCopies(previous: FurnitureProduct, next: FurnitureProduct): number;
 
   /** Adds a rectangular room: centered on `at` (docked to a nearby room), or next to the plan's rightmost room. */
   addRoom(options?: { at?: Point; name?: string; width?: number; depth?: number }): string;
@@ -149,7 +155,10 @@ export interface EditorState extends ProjectData {
   deleteOpening(id: string): void;
 
   beginGesture(): void;
-  /** Ends a gesture; for dragged surface items, attaches them to the host underneath. */
+  /**
+   * Ends a gesture. Dragged surface items are attached to the host underneath; floor-or-furniture
+   * items go on top of it, or onto the floor when there is none.
+   */
   endGesture(draggedId?: string): void;
 
   /** Adds an empty layout on the active layout's floor plan. */
@@ -268,25 +277,30 @@ export function createProjectStore(initial: ProjectData) {
 
     /**
      * Adds a new item. Surface items (monitors…) go onto a host: the one under the drop point,
-     * the selected one, or a default one (see `defaultHost`). Everything else, and surface
-     * items without a host, go to the nearest free spot.
+     * the selected one, or a default one (see `defaultHost`). Floor-or-furniture items go onto
+     * the host they are dropped on or the selected one, and otherwise where they usually stand.
+     * Everything else, and items without a host, go to the nearest free spot.
      */
     const placeNewItem = (item: FurnitureItem, at?: Point): string => {
       const s = get();
       const list = items();
-      if (item.placement === 'surface') {
+      if (goesOnHosts(item)) {
         const selected = s.selectedId ? list.find((i) => i.id === s.selectedId) : undefined;
-        const host =
-          (at ? findHostUnder(item, list) : null) ??
-          (selected && canHostSurfaceItems(selected) ? selected : null) ??
-          defaultHost(item, list);
+        const selectedHost = selected && canHostSurfaceItems(selected) ? selected : null;
+        const host = item.flexiblePlacement
+          ? at
+            ? findHostUnder(item, list)
+            : (selectedHost ?? (item.placement === 'surface' ? defaultHost(item, list) : null))
+          : ((at ? findHostUnder(item, list) : null) ?? selectedHost ?? defaultHost(item, list));
+        // On a host it is a surface item, also while looking for a free spot there.
+        const onHost: FurnitureItem = { ...item, placement: 'surface' };
         const placement = !host
           ? null
           : at
             ? { position: { ...at, rotation: host.rotation }, moved: new Map<string, Point>() }
-            : placeOnHost(item, host, list);
+            : placeOnHost(onHost, host, list);
         if (host && placement) {
-          const placed = { ...item, ...placement.position, attachedTo: host.id };
+          const placed: FurnitureItem = { ...onHost, ...placement.position, attachedTo: host.id };
           commit(
             (doc) =>
               mapActiveFurniture(doc, (current) => [
@@ -310,7 +324,8 @@ export function createProjectStore(initial: ProjectData) {
           return get().addItem({ ...item, rotation: spot.rotation }, { preferred: spot });
         }
       }
-      return get().addItem(item, { preferred: at });
+      // Off the furniture, a floor-or-furniture item stands on the floor.
+      return get().addItem(item.flexiblePlacement ? { ...item, placement: 'floor' } : item, { preferred: at });
     };
 
     return {
@@ -459,6 +474,22 @@ export function createProjectStore(initial: ProjectData) {
             list.map((i) => (i.id === id && i.id !== parentId ? { ...i, attachedTo: parentId } : i)),
           ),
         ),
+
+      updatePlacedCopies: (previous, next) => {
+        let count = 0;
+        commit((doc) => {
+          const layouts = doc.layouts.map((layout) => {
+            const furniture = layout.furniture.map((item) =>
+              item.product?.catalogId === next.id ? applyProductEdit(item, previous, next) : item,
+            );
+            const changed = furniture.filter((item, i) => item !== layout.furniture[i]).length;
+            count += changed;
+            return changed > 0 ? { ...layout, furniture } : layout;
+          });
+          return count > 0 ? { ...doc, layouts } : doc;
+        });
+        return count;
+      },
 
       addRoom: (options = {}) => {
         const plan = rooms();
@@ -641,12 +672,14 @@ export function createProjectStore(initial: ProjectData) {
       endGesture: (draggedId) => {
         if (draggedId) {
           const item = findItem(draggedId);
-          if (item && item.placement === 'surface') {
+          if (item && goesOnHosts(item)) {
             const host = findHostUnder(item, items());
             const attachedTo = host?.id ?? null;
-            if (attachedTo !== item.attachedTo) {
+            // Floor-or-furniture items stand on whatever they were dropped on.
+            const placement = item.flexiblePlacement ? (host ? 'surface' : 'floor') : item.placement;
+            if (attachedTo !== item.attachedTo || placement !== item.placement) {
               commit((doc) =>
-                mapActiveFurniture(doc, (list) => list.map((i) => (i.id === draggedId ? { ...i, attachedTo } : i))),
+                mapActiveFurniture(doc, (list) => list.map((i) => (i.id === draggedId ? { ...i, attachedTo, placement } : i))),
               );
             }
           }
@@ -770,3 +803,6 @@ export const selectSelectedOpening = (s: EditorState) => (s.selectedId ? (findOp
 /** The room that owns the selected opening. */
 export const selectSelectedOpeningRoom = (s: EditorState) => (s.selectedId ? (findOpening(activeRooms(s), s.selectedId)?.room ?? null) : null);
 export const selectProjectData = (s: EditorState): ProjectData => ({ ...docOf(s), settings: s.settings });
+/** How many items in all layouts were placed from a catalog product. */
+export const selectPlacedCopyCount = (productId: string) => (s: EditorState) =>
+  s.layouts.reduce((n, l) => n + l.furniture.filter((i) => i.product?.catalogId === productId).length, 0);

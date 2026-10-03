@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { findBuiltInProduct } from '../catalog/catalog';
+import { editProduct, productStandsOn } from '../catalog/editProduct';
+import type { FurnitureProduct } from '../catalog/types';
+import type { CustomItemInput } from '../furniture/factory';
+import { applyStandsOn } from '../furniture/standsOn';
 import { footprintBox } from '../geometry/footprint';
 import { openingAnchor } from '../plan/openings';
 import { roomAt } from '../plan/rooms';
 import { roomArea, roomBounds, roomRect } from '../plan/shape';
 import { findOpening } from './documentOps';
-import { createProjectStore, selectActiveLayout, selectItems, selectProjectData, selectRooms } from './projectStore';
+import { createProjectStore, selectActiveLayout, selectItems, selectPlacedCopyCount, selectProjectData, selectRooms } from './projectStore';
 import { createEmptyProject, createSampleProject } from './sampleProject';
 import { ProjectFileError, parseProjectJson, serializeProject } from './serialization';
 
@@ -208,6 +212,151 @@ describe('catalog products', () => {
     const store = createProjectStore(createEmptyProject(400, 300));
     const id = store.getState().addProduct(findBuiltInProduct('ikea:00263850')!, { x: 60, y: 20 });
     expect(itemsOf(store).find((i) => i.id === id)).toMatchObject({ x: 60, y: 20 });
+  });
+
+  it('carries an edit of a saved product over to its copies in every layout, as one undo step', () => {
+    const store = newStore();
+    const box: FurnitureProduct = {
+      id: 'custom_box',
+      manufacturer: 'Custom',
+      productName: 'Box',
+      category: 'other',
+      kind: 'generic',
+      width: 40,
+      depth: 30,
+      height: 30,
+      placement: 'floor',
+      origin: 'user',
+    };
+    const first = store.getState().addProduct(box, { x: 100, y: 200 });
+    store.getState().addProduct(box, { x: 200, y: 200 });
+    store.getState().updateItem(first, { name: 'Toy box' });
+    store.getState().duplicateLayout(store.getState().activeLayoutId);
+    const count = selectPlacedCopyCount(box.id)(store.getState());
+    expect(count).toBe(4);
+
+    const next = editProduct(box, { name: 'Crate', width: 50, depth: 30, height: 30, shape: 'rect', category: 'other', standsOn: productStandsOn(box) });
+    const steps = store.getState().past.length;
+    expect(store.getState().updatePlacedCopies(box, next)).toBe(4);
+    const copies = store.getState().layouts.flatMap((l) => l.furniture.filter((i) => i.product?.catalogId === box.id));
+    expect(copies.map((i) => i.width)).toEqual([50, 50, 50, 50]);
+    expect(copies.map((i) => i.name).sort()).toEqual(['Crate', 'Crate', 'Toy box', 'Toy box']);
+    expect(store.getState().past).toHaveLength(steps + 1);
+
+    store.getState().undo();
+    expect(store.getState().layouts.flatMap((l) => l.furniture.filter((i) => i.product?.catalogId === box.id)).map((i) => i.width)).toEqual([40, 40, 40, 40]);
+    // Nothing to carry over: no undo step.
+    expect(store.getState().updatePlacedCopies(box, box)).toBe(0);
+    expect(store.getState().past).toHaveLength(steps);
+  });
+});
+
+describe('objects that stand on the floor or on furniture', () => {
+  const lamp: CustomItemInput = {
+    name: 'Lamp',
+    width: 20,
+    depth: 20,
+    height: 45,
+    category: 'other',
+    placement: 'floor',
+    flexiblePlacement: true,
+    shape: { kind: 'round' },
+  };
+  const lampProduct: FurnitureProduct = {
+    id: 'custom_lamp',
+    manufacturer: 'Custom',
+    productName: 'Lamp',
+    category: 'other',
+    kind: 'generic',
+    width: 20,
+    depth: 20,
+    height: 45,
+    placement: 'floor',
+    flexiblePlacement: true,
+    origin: 'user',
+  };
+  const itemById = (store: ReturnType<typeof newStore>, id: string) => itemsOf(store).find((i) => i.id === id)!;
+  const drag = (store: ReturnType<typeof newStore>, id: string, to: { x: number; y: number }) => {
+    store.getState().beginGesture();
+    store.getState().setGeometry(id, to);
+    store.getState().endGesture(id);
+  };
+
+  it('goes onto the furniture it is dragged onto, moves with it, and goes back onto the floor', () => {
+    const store = newStore();
+    store.getState().select(null);
+    const id = store.getState().addCustom(lamp);
+    expect(itemById(store, id)).toMatchObject({ placement: 'floor', attachedTo: null });
+
+    const desk = byName(store, 'Desk');
+    drag(store, id, { x: 205, y: 40 });
+    expect(itemById(store, id)).toMatchObject({ placement: 'surface', attachedTo: desk.id });
+    store.getState().setGeometry(desk.id, { x: desk.x - 10 });
+    expect(itemById(store, id).x).toBe(195);
+
+    drag(store, id, { x: 250, y: 250 });
+    expect(itemById(store, id)).toMatchObject({ placement: 'floor', attachedTo: null });
+    store.getState().undo();
+    expect(itemById(store, id)).toMatchObject({ placement: 'surface', attachedTo: desk.id, x: 195 });
+  });
+
+  it('lands on the furniture it is dropped on from the library, and on the floor elsewhere', () => {
+    const store = newStore();
+    const desk = byName(store, 'Desk');
+    const onDesk = store.getState().addProduct(lampProduct, { x: 205, y: 40 });
+    expect(itemById(store, onDesk)).toMatchObject({ placement: 'surface', attachedTo: desk.id, x: 205, y: 40 });
+    // Not onto the desk that is still selected: it was dropped on the floor.
+    store.getState().select(desk.id);
+    const onFloor = store.getState().addProduct(lampProduct, { x: 250, y: 250 });
+    expect(itemById(store, onFloor)).toMatchObject({ placement: 'floor', attachedTo: null });
+  });
+
+  it('goes onto the selected desk when added with a click, and onto the floor otherwise', () => {
+    const store = newStore();
+    const desk = byName(store, 'Desk');
+    store.getState().select(desk.id);
+    expect(itemById(store, store.getState().addCustom(lamp))).toMatchObject({ placement: 'surface', attachedTo: desk.id });
+    store.getState().select(null);
+    expect(itemById(store, store.getState().addCustom(lamp))).toMatchObject({ placement: 'floor', attachedTo: null });
+  });
+
+  it('puts the small plant on the desk, and on the floor when dragged off it', () => {
+    const store = newStore();
+    store.getState().select(null);
+    const id = store.getState().addPreset('plant-small')!;
+    expect(itemById(store, id)).toMatchObject({ placement: 'surface', flexiblePlacement: true, attachedTo: byName(store, 'Desk').id });
+    drag(store, id, { x: 250, y: 250 });
+    expect(itemById(store, id)).toMatchObject({ placement: 'floor', attachedTo: null });
+  });
+
+  it('is not somewhere to put other things', () => {
+    const store = newStore();
+    store.getState().select(null);
+    const id = store.getState().addCustom({ ...lamp, name: 'Basket', width: 60, depth: 60, shape: { kind: 'rect' } });
+    const basket = itemById(store, id);
+    store.getState().select(null);
+    const monitor = store.getState().addPreset('monitor-24', { x: basket.x, y: basket.y })!;
+    expect(itemById(store, monitor).attachedTo).not.toBe(id);
+  });
+
+  it('ends up on the floor when the furniture under it is deleted', () => {
+    const store = newStore();
+    const desk = byName(store, 'Desk');
+    store.getState().select(desk.id);
+    const id = store.getState().addCustom(lamp);
+    store.getState().deleteItem(desk.id);
+    expect(itemById(store, id)).toMatchObject({ placement: 'floor', attachedTo: null });
+    // Monitors stay where they are, still on (now missing) furniture.
+    expect(byName(store, 'Monitor left').placement).toBe('surface');
+  });
+
+  it('switches between floor, furniture and both in the inspector', () => {
+    const store = newStore();
+    const monitor = byName(store, 'Monitor left');
+    store.getState().updateItem(monitor.id, applyStandsOn('both', monitor.placement));
+    expect(byName(store, 'Monitor left')).toMatchObject({ placement: 'surface', flexiblePlacement: true, attachedTo: monitor.attachedTo });
+    store.getState().updateItem(monitor.id, applyStandsOn('floor', monitor.placement));
+    expect(byName(store, 'Monitor left')).toMatchObject({ placement: 'floor', flexiblePlacement: false, attachedTo: null });
   });
 });
 

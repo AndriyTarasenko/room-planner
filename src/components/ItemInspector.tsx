@@ -4,6 +4,7 @@ import { CATEGORIES, CATEGORY_ORDER, COLOR_SWATCHES } from '../furniture/categor
 import { DESK_WIDTHS, MONITOR_SIZES, TV_SIZES, TYPE_LABELS } from '../furniture/presets';
 import { canHostSurfaceItems, isDesk } from '../furniture/rules';
 import { SHAPE_CHOICES, type ShapeChoice, applyShapeChoice, canBeRound, shapeChoiceOf } from '../furniture/shapeChoice';
+import { STANDS_ON_CHOICES, type StandsOn, applyStandsOn, standsOnOf } from '../furniture/standsOn';
 import { CLEARANCE_SIDES } from '../geometry/clearance';
 import { type WallDistances, wallDistances } from '../geometry/distances';
 import { footprintBox, isCircle, lArms } from '../geometry/footprint';
@@ -13,7 +14,7 @@ import { roomForBox } from '../plan/rooms';
 import { roomBounds } from '../plan/shape';
 import { projectStore, selectItems, selectRooms, useEditor } from '../store';
 import { ITEM_LIMITS } from '../store/defaults';
-import type { Category, Clearance, FurnitureItem, FurnitureType, Placement, ProductRef } from '../types';
+import type { Category, Clearance, FurnitureItem, FurnitureType, ProductRef } from '../types';
 import { formatNumber } from '../utils/format';
 import { safeHttpUrl } from '../utils/validate';
 import { NumberField } from './ui/NumberField';
@@ -322,15 +323,17 @@ function PlacementSection({ item, items }: { item: FurnitureItem; items: readonl
   return (
     <Section title="Placement">
       <div className="stack">
-        <Segmented<Placement>
+        <Segmented<StandsOn>
           label="Stands on"
-          value={item.placement}
-          onChange={(placement) => updateItem(item.id, { placement })}
-          options={[
-            { value: 'floor', label: 'Floor' },
-            { value: 'surface', label: 'On furniture', title: 'Sits on a desk or sideboard, like a monitor' },
-          ]}
+          value={standsOnOf(item)}
+          onChange={(choice) => updateItem(item.id, applyStandsOn(choice, item.placement))}
+          options={STANDS_ON_CHOICES}
         />
+        {item.flexiblePlacement && (
+          <p className="empty-note" style={{ margin: 0 }}>
+            Drag it onto a desk, table or shelf to put it there; anywhere else it stands on the floor.
+          </p>
+        )}
         {item.placement === 'surface' && (
           <div>
             <span className="field-label">Moves with</span>

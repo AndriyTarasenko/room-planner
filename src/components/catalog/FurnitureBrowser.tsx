@@ -10,6 +10,7 @@ import { CustomFurnitureDialog } from '../CustomFurnitureDialog';
 import { ImportProductDialog } from './ImportProductDialog';
 import { LiveSearchSection } from './LiveSearchSection';
 import { ProductDetailsDialog } from './ProductDetailsDialog';
+import { ProductEditDialog } from './ProductEditDialog';
 import { ProductRow } from './ProductRow';
 import { useCollapsedGroups } from '../../hooks/useCollapsedGroups';
 
@@ -50,6 +51,7 @@ function LibraryGroup({ title, count, open, onToggle, children }: GroupProps) {
 export function FurnitureBrowser() {
   const [filter, setFilter] = useState<CatalogFilter>(NO_FILTER);
   const [details, setDetails] = useState<FurnitureProduct | null>(null);
+  const [editing, setEditing] = useState<FurnitureProduct | null>(null);
   const [importing, setImporting] = useState<LiveProductCandidate | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const { collapsed, toggle, collapseOnly } = useCollapsedGroups(LIBRARY_COLLAPSED_KEY);
@@ -79,7 +81,7 @@ export function FurnitureBrowser() {
   const emptyNote = effective.favoritesOnly && favorites.length === 0
     ? 'No favorites yet. Use the star on any item to keep it here.'
     : effective.origin === 'user' && saved.length === 0
-      ? 'Nothing saved yet. Products you add from an online search, and custom objects you save, appear here.'
+      ? 'Nothing saved yet. Products you add from an online search, and custom objects you save, appear here and can be edited later.'
       : effective.query.trim()
         ? `No furniture matches “${effective.query.trim()}”.`
         : 'No furniture matches these filters.';
@@ -179,7 +181,7 @@ export function FurnitureBrowser() {
         {showRecent && (
           <LibraryGroup title="Recently used" count={recentProducts.length} open={isOpen(RECENT_GROUP)} onToggle={() => toggle(RECENT_GROUP)}>
             {recentProducts.map((p) => (
-              <ProductRow key={`recent-${p.id}`} product={p} onDetails={setDetails} />
+              <ProductRow key={`recent-${p.id}`} product={p} onDetails={setDetails} onEdit={setEditing} />
             ))}
           </LibraryGroup>
         )}
@@ -193,7 +195,7 @@ export function FurnitureBrowser() {
             onToggle={() => toggle(category)}
           >
             {products.map((p) => (
-              <ProductRow key={p.id} product={p} onDetails={setDetails} />
+              <ProductRow key={p.id} product={p} onDetails={setDetails} onEdit={setEditing} />
             ))}
           </LibraryGroup>
         ))}
@@ -210,7 +212,15 @@ export function FurnitureBrowser() {
         </button>
       </div>
       <CustomFurnitureDialog open={customOpen} onClose={() => setCustomOpen(false)} />
-      <ProductDetailsDialog product={details} onClose={() => setDetails(null)} />
+      <ProductDetailsDialog
+        product={details}
+        onClose={() => setDetails(null)}
+        onEdit={(p) => {
+          setDetails(null);
+          setEditing(p);
+        }}
+      />
+      <ProductEditDialog product={editing} onClose={() => setEditing(null)} />
       <ImportProductDialog candidate={importing} onClose={() => setImporting(null)} />
     </>
   );

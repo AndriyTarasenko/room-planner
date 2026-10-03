@@ -131,7 +131,8 @@ export function applyGeometry(
 export function removeItem(items: FurnitureItem[], id: string): FurnitureItem[] {
   return items
     .filter((i) => i.id !== id)
-    .map((i) => (i.attachedTo === id ? { ...i, attachedTo: null } : i));
+    // Floor-or-furniture items on it end up on the floor.
+    .map((i) => (i.attachedTo === id ? { ...i, attachedTo: null, ...(i.flexiblePlacement && { placement: 'floor' as const }) } : i));
 }
 
 /** Copies an item (and anything attached to it) with fresh ids, offset by (dx, dy). */

@@ -78,6 +78,8 @@ export interface FurnitureProduct {
   heightMax?: number;
   /** Defaults to the kind's usual placement (monitors stand on furniture, everything else on the floor). */
   placement?: Placement;
+  /** Stands on the floor or on furniture, wherever it is dropped (plants, lamps); `placement` is where it goes by default. */
+  flexiblePlacement?: boolean;
   rotation?: number;
   clearance?: Partial<Clearance>;
   shape?: Shape;

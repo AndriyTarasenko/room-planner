@@ -14,7 +14,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 - **Editing**: drag, rotate, resize with handles or exact inspector fields. The round handle above the selection turns an object to any angle in whole degrees and shows the angle while you turn. It sticks to the diagonals and to the walls of the object's room, so furniture lines up with a slanted wall. Hold `Shift` for 15° steps or `Alt` to turn without sticking. `R` turns by 90°, `[` and `]` by 15°, and the inspector has 0/90/180/270 buttons and an angle field. Numeric fields accept arithmetic such as `180+20`. L-shaped sofas, desks and counters have a handle on each arm: drag an arm's end to change its length, or its inner edge to change its depth, so both parts of the L are sized separately.
 - **Round furniture**: round and oval tables, poufs, stools and plants. A circle is sized by its diameter (Ø) and stays a circle when you drag either handle. Tables, poufs, plants and plain objects can be switched between **Rectangle**, **Round** and **Oval** in the inspector. Collisions, clearance checks and "inside the room" use the round outline, so a chair in the corner of a round table's bounding box isn't a collision.
 - **Desk shortcuts**: one-click desk widths (140/160/180/200) that keep the desk against its wall, monitor and TV size switching, and optional desk guides (monitor area, reach zone, chair spot).
-- **Monitors and other items on furniture**: dropping a monitor on a desk attaches it. It then moves and rotates with the desk and is not counted as a collision. Adding a second monitor centers the pair on the desk. A new TV goes onto a TV bench, and a microwave or kitchen wall cabinet onto a kitchen counter.
+- **Monitors and other items on furniture**: dropping a monitor on a desk attaches it. It then moves and rotates with the desk and is not counted as a collision. Adding a second monitor centers the pair on the desk. A new TV goes onto a TV bench, and a microwave or kitchen wall cabinet onto a kitchen counter. Objects set to stand on **Both** (the small plant, or any custom object) go wherever you drop them: onto a desk, table or shelf, or onto the floor, and they switch between the two as you drag them on and off.
 - **Measurements**: live distances from the selection to the nearest wall of its room in each direction, gaps to the nearest furniture in each direction, and, for monitors, distances to the desk edges. A selected door or window shows its distance to both corners of the wall.
 - **Ruler**: **Measure** under *Floor plan* (or `M`) measures the distance between any two points. Drag from one point to the other, or click both ends. The ends snap to the corners of rooms, walls, doors, windows and furniture, to the centers of round furniture, and onto wall faces and furniture outlines. Near horizontal or vertical, the measurement locks to that axis and stops on a wall or furniture edge it crosses. A slanted measurement also shows its horizontal and vertical parts. Hold `Alt` to place the ends freely. While measuring, the middle mouse button pans, and `Escape` removes the measurement, then leaves the tool.
 - **Snapping**: to walls, to nearby furniture edges and centers, and optionally to the grid (5/10/25/50 cm, measured from the room's corner), with visual guides. Hold `Alt` while dragging to disable snapping.
@@ -67,16 +67,16 @@ The furniture browser in the left sidebar combines four sources:
   - Kitchen: base cabinet, straight and L-shaped counters, island, tall and wall cabinets, sink cabinet, stove, fridge-freezer, side-by-side fridge, dishwasher and microwave.
   - Bathroom: toilet, washbasin, vanity unit, showers (90 × 90, 120 × 80), bathtub, washing machine and tumble dryer.
   - Electronics: TVs (43″–75″, on their stand), monitors, PC tower and game console.
-  - Other: a floor plant, a small plant that stands on furniture, and a plain rectangle and circle for anything else.
+  - Other: a floor plant, a small plant for furniture or the floor, and a plain rectangle and circle for anything else.
 
   Each kind has its own top-down symbol (sink basin, burners, toilet bowl, washer drum…). Appliances with doors and toilets come with clearance zones switched on.
 - **Curated manufacturer products**: 69 IKEA products for home offices, gaming rooms, bedrooms and living rooms. They include ALEX, MALM, MICKE, LAGKAPTEN, IDÅSEN, TROTTEN, MITTZON and UTESPELARE desks, MARKUS, FLINTAN, MATCHSPEL and STYRSPEL chairs, BILLY, KALLAX, PAX, KLEPPSTAD, BRIMNES, SONGESAND and HEMNES storage, MALM, SLATTUM and HEMNES beds, KIVIK, EKTORP, KLIPPAN and GLOSTAD sofas, and BESTÅ and LACK TV furniture and tables. Every size variant is its own entry with its own article number, and every dimension was checked against the IKEA Germany product page (catalog 1.2, 2026-10-01).
-- **My furniture**: products you saved, either from IKEA online search or as custom objects ("Save to My furniture for reuse"). They are kept in this browser.
+- **My furniture**: products you saved, either from IKEA online search or as custom objects ("Save to My furniture for reuse"). They are kept in this browser. The pencil on a saved row, or **Edit** in its details, changes its name, shape, size, category and what it stands on. If copies are already placed in the project, the edit can update them in every layout, as one undo step. Only what you changed is applied, so a copy you renamed keeps its name.
 - **Live providers**: "Search IKEA online" looks up IKEA's current range. It is optional; see below.
 
 Search is case- and accent-insensitive (`idasen` finds IDÅSEN) and matches name, product line, type, manufacturer, category, article number (`004.735.46` or `00473546`) and sizes (`160x80`, or a bed's `160x200`). Rows show manufacturer, name and width × depth × height; ⓘ opens the details (article number, category, source, verification date and product page). Favorites (☆) and the 8 most recently used items are stored in this browser.
 
-Custom objects work as before: name, shape (rectangle, round or oval), width and depth or a diameter, height, category and whether it stands on the floor or on furniture. A custom object behaves like any catalog object once placed.
+Custom objects work as before: name, shape (rectangle, round or oval), width and depth or a diameter, height, category and whether it stands on the floor, on furniture, or both. A custom object behaves like any catalog object once placed.
 
 ### IKEA integration
 
@@ -328,7 +328,8 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
           "width": 180, "depth": 80, "height": 75,
           "rotation": 0,                      // degrees, clockwise
           "category": "desk", "color": "#dccaa9", "notes": "",
-          "placement": "floor",               // "floor" | "surface"
+          "placement": "floor",               // "floor" | "surface": where it stands now
+          "flexiblePlacement": false,         // true: on furniture when dropped onto it, else on the floor
           "ignoreCollisions": false,
           "clearance": { "enabled": false, "front": 90, "back": 0, "left": 0, "right": 0 },
           "shape": { "kind": "rect" },        // or { "kind": "l", "segment": 60, "returnWidth": 50, "returnSide": "right" }, or { "kind": "round" }

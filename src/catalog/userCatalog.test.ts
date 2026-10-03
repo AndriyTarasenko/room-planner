@@ -40,6 +40,19 @@ describe('personal catalog persistence', () => {
     expect(store.getState().products[0].width).toBe(140);
   });
 
+  it('edits a saved product in place, keeping its position in the list', () => {
+    const storage = new MemoryStorage();
+    const store = createUserCatalogStore(storage);
+    store.getState().saveProduct(saved);
+    store.getState().saveProduct({ ...saved, id: 'ikea:87654321' });
+    expect(store.getState().updateProduct({ ...saved, width: 125 })).toBe(true);
+    expect(store.getState().products.map((p) => [p.id, p.width])).toEqual([
+      ['ikea:87654321', 120],
+      ['ikea:12345678', 125],
+    ]);
+    expect(createUserCatalogStore(storage).getState().products[1].width).toBe(125);
+  });
+
   it('toggles favorites and keeps them across reloads', () => {
     const storage = new MemoryStorage();
     const store = createUserCatalogStore(storage);

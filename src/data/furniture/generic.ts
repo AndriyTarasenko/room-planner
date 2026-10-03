@@ -19,6 +19,7 @@ export const GENERIC_PRODUCTS: readonly FurnitureProduct[] = PRESETS.map((preset
   depth: preset.depth,
   height: preset.height,
   placement: preset.placement,
+  ...(preset.flexiblePlacement && { flexiblePlacement: true }),
   ...(preset.rotation !== undefined && { rotation: preset.rotation }),
   ...(preset.clearance && { clearance: preset.clearance }),
   ...(preset.shape && { shape: preset.shape }),

@@ -11,8 +11,16 @@ const HOST_TYPES: ReadonlySet<FurnitureType> = new Set([...DESK_TYPES, 'table', 
 
 export const isDesk = (item: Pick<FurnitureItem, 'type'>) => DESK_TYPES.has(item.type);
 
-/** Items that monitors and other surface items can stand on. */
-export const canHostSurfaceItems = (item: FurnitureItem) => item.placement === 'floor' && HOST_TYPES.has(item.type);
+/**
+ * Items that monitors and other surface items can stand on. Objects that go on the floor or
+ * on furniture (a plant, a lamp) are small things themselves, not somewhere to put others.
+ */
+export const canHostSurfaceItems = (item: FurnitureItem) =>
+  item.placement === 'floor' && !item.flexiblePlacement && HOST_TYPES.has(item.type);
+
+/** Whether dropping an item can put it onto furniture: surface items and floor-or-furniture items. */
+export const goesOnHosts = (item: Pick<FurnitureItem, 'placement' | 'flexiblePlacement'>) =>
+  item.placement === 'surface' || item.flexiblePlacement;
 
 /**
  * Where a new surface item goes when it wasn't dropped onto a host and no host is selected:

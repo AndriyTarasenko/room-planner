@@ -5,15 +5,14 @@ import { CUSTOM_MANUFACTURER, type FurnitureProduct } from '../catalog/types';
 import { userCatalogStore } from '../catalog/userCatalog';
 import { CATEGORIES, CATEGORY_ORDER } from '../furniture/categories';
 import type { CustomItemInput } from '../furniture/factory';
-import { SHAPE_CHOICES, type ShapeChoice } from '../furniture/shapeChoice';
+import type { ShapeChoice } from '../furniture/shapeChoice';
+import { type StandsOn, applyStandsOn, standsOnOf } from '../furniture/standsOn';
 import { projectStore } from '../store';
-import { ITEM_LIMITS } from '../store/defaults';
-import type { Category, Placement } from '../types';
+import type { Category } from '../types';
 import { localDateString } from '../utils/format';
 import { createId } from '../utils/id';
+import { ShapeSizeFields, StandsOnField } from './ObjectFields';
 import { Dialog } from './ui/Dialog';
-import { NumberField } from './ui/NumberField';
-import { Segmented } from './ui/controls';
 import { toast } from './ui/toastStore';
 
 /** A custom object as a reusable product in My furniture. */
@@ -28,6 +27,7 @@ function customProduct(input: CustomItemInput): FurnitureProduct {
     depth: input.depth,
     height: input.height,
     placement: input.placement,
+    ...(input.flexiblePlacement && { flexiblePlacement: true }),
     ...(input.shape.kind === 'round' && { shape: input.shape }),
     origin: 'user',
     source: 'Entered by you',
@@ -35,7 +35,15 @@ function customProduct(input: CustomItemInput): FurnitureProduct {
   };
 }
 
-const INITIAL: Omit<CustomItemInput, 'shape'> = { name: '', width: 60, depth: 40, height: 50, category: 'other', placement: 'floor' };
+const INITIAL: Omit<CustomItemInput, 'shape'> = {
+  name: '',
+  width: 60,
+  depth: 40,
+  height: 50,
+  category: 'other',
+  placement: 'floor',
+  flexiblePlacement: false,
+};
 
 export function CustomFurnitureDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
@@ -94,48 +102,18 @@ function CustomForm({ onDone }: { onDone: () => void }) {
           }}
         />
       </div>
+      <ShapeSizeFields shape={shape} onShape={setShape} size={input} onSize={(patch) => setInput((s) => ({ ...s, ...patch }))} />
       <div>
-        <span className="field-label">Shape</span>
-        <Segmented<ShapeChoice> label="Shape" value={shape} onChange={setShape} options={SHAPE_CHOICES} />
+        <span className="field-label">Category</span>
+        <select className="select" value={input.category} onChange={(e) => set('category', e.target.value as Category)}>
+          {CATEGORY_ORDER.map((c) => (
+            <option key={c} value={c}>
+              {CATEGORIES[c].label}
+            </option>
+          ))}
+        </select>
       </div>
-      <div>
-        <span className="field-label">Size</span>
-        <div className="grid-3">
-          {shape === 'round' ? (
-            <NumberField label="Diameter" prefix="Ø" value={input.width} min={ITEM_LIMITS.min} max={ITEM_LIMITS.max} onCommit={(v) => set('width', v)} />
-          ) : (
-            <>
-              <NumberField label="Width" prefix="W" value={input.width} min={ITEM_LIMITS.min} max={ITEM_LIMITS.max} onCommit={(v) => set('width', v)} />
-              <NumberField label="Depth" prefix="D" value={input.depth} min={ITEM_LIMITS.min} max={ITEM_LIMITS.max} onCommit={(v) => set('depth', v)} />
-            </>
-          )}
-          <NumberField label="Height" prefix="H" value={input.height} min={0} max={ITEM_LIMITS.max} onCommit={(v) => set('height', v)} />
-        </div>
-      </div>
-      <div className="grid-2">
-        <div>
-          <span className="field-label">Category</span>
-          <select className="select" value={input.category} onChange={(e) => set('category', e.target.value as Category)}>
-            {CATEGORY_ORDER.map((c) => (
-              <option key={c} value={c}>
-                {CATEGORIES[c].label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <span className="field-label">Stands on</span>
-          <Segmented<Placement>
-            label="Placement"
-            value={input.placement}
-            onChange={(v) => set('placement', v)}
-            options={[
-              { value: 'floor', label: 'Floor' },
-              { value: 'surface', label: 'Furniture', title: 'Sits on a desk or sideboard (like a monitor)' },
-            ]}
-          />
-        </div>
-      </div>
+      <StandsOnField value={standsOnOf(input)} onChange={(v: StandsOn) => setInput((s) => ({ ...s, ...applyStandsOn(v) }))} />
       <label className="checkbox" title="Keep it in the furniture browser under My furniture, in this browser">
         <input type="checkbox" checked={saveToCatalog} onChange={(e) => setSaveToCatalog(e.target.checked)} />
         Save to My furniture for reuse

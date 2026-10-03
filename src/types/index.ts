@@ -110,7 +110,13 @@ export interface FurnitureItem {
   category: Category;
   color: string;
   notes: string;
+  /** Where the item stands now. */
   placement: Placement;
+  /**
+   * Can stand on the floor and on furniture (plants, lamps, speakers): dropped onto a desk,
+   * shelf or sideboard it goes on top, dropped anywhere else it stands on the floor.
+   */
+  flexiblePlacement: boolean;
   /** Skip collision warnings for this item (e.g. PC tower tucked under a desk). */
   ignoreCollisions: boolean;
   clearance: Clearance;

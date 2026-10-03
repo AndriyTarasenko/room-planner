@@ -84,6 +84,7 @@ export function parseProduct(raw: unknown, origin: CatalogOrigin): FurnitureProd
     variant: optionalStr(raw.variant, 120),
     heightMax: heightMax !== null && heightMax > height ? heightMax : undefined,
     placement: raw.placement === 'floor' || raw.placement === 'surface' ? raw.placement : undefined,
+    flexiblePlacement: raw.flexiblePlacement === true ? true : undefined,
     rotation: typeof raw.rotation === 'number' && Number.isFinite(raw.rotation) ? normalizeAngle(raw.rotation) : undefined,
     clearance: parseClearance(raw.clearance),
     shape: parseShape(raw.shape, width, depth),

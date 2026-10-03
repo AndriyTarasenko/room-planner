@@ -25,6 +25,7 @@ export function createItemFromPreset(preset: FurniturePreset, position: Point): 
     color: preset.color ?? CATEGORIES[preset.category].color,
     notes: '',
     placement: preset.placement,
+    flexiblePlacement: preset.flexiblePlacement ?? false,
     ignoreCollisions: false,
     clearance: { ...EMPTY_CLEARANCE, ...preset.clearance },
     shape: preset.shape ?? { kind: 'rect' },
@@ -40,6 +41,8 @@ export interface CustomItemInput {
   height: number;
   category: Category;
   placement: Placement;
+  /** Stands on the floor or on furniture, wherever it is dropped. */
+  flexiblePlacement: boolean;
   /** Rectangular or round (a circle when width and depth are equal). */
   shape: Shape;
 }
@@ -56,6 +59,7 @@ export function createCustomItem(input: CustomItemInput, position: Point): Furni
       depth: input.depth,
       height: input.height,
       placement: input.placement,
+      flexiblePlacement: input.flexiblePlacement,
       shape: input.shape,
     },
     position,

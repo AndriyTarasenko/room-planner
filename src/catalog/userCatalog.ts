@@ -77,6 +77,8 @@ function loadUserCatalog(storage: Storage | null): UserCatalogData {
 export interface UserCatalogState extends UserCatalogData {
   /** Adds or replaces a product (matched by id). Returns false when it could not be stored. */
   saveProduct(product: FurnitureProduct): boolean;
+  /** Replaces a saved product in place (matched by id). Returns false when it could not be stored. */
+  updateProduct(product: FurnitureProduct): boolean;
   removeProduct(id: string): void;
   toggleFavorite(id: string): void;
   markUsed(id: string): void;
@@ -103,6 +105,14 @@ export function createUserCatalogStore(storage: Storage | null) {
       saveProduct: (product) => {
         const saved: FurnitureProduct = { ...product, origin: 'user' };
         set({ products: [saved, ...get().products.filter((p) => p.id !== saved.id)].slice(0, SAVED_LIMIT) });
+        return persist();
+      },
+
+      updateProduct: (product) => {
+        const products = get().products;
+        if (!products.some((p) => p.id === product.id)) return get().saveProduct(product);
+        const saved: FurnitureProduct = { ...product, origin: 'user' };
+        set({ products: products.map((p) => (p.id === saved.id ? saved : p)) });
         return persist();
       },
 

@@ -1,4 +1,4 @@
-import { Info, Star } from 'lucide-react';
+import { Info, Pencil, Star } from 'lucide-react';
 import { itemCategoryFor } from '../../catalog/categories';
 import { formatDimensions, productMeta, productTitle } from '../../catalog/format';
 import { endProductDrag, placeProduct, startProductDrag } from '../../catalog/placeProduct';
@@ -45,10 +45,12 @@ export function ProductGlyph({ product }: { product: Pick<FurnitureProduct, 'wid
 interface Props {
   product: FurnitureProduct;
   onDetails: (product: FurnitureProduct) => void;
+  /** Saved products (My furniture) can be edited. */
+  onEdit: (product: FurnitureProduct) => void;
 }
 
-/** One catalog entry: click or drag to add; star to favorite; ⓘ for details. */
-export function ProductRow({ product, onDetails }: Props) {
+/** One catalog entry: click or drag to add; star to favorite; pencil to edit saved ones; ⓘ for details. */
+export function ProductRow({ product, onDetails, onEdit }: Props) {
   const favorite = useUserCatalog((s) => s.favorites.includes(product.id));
   const title = productTitle(product);
   const meta = productMeta(product);
@@ -88,6 +90,11 @@ export function ProductRow({ product, onDetails }: Props) {
         >
           <Star size={13} fill={favorite ? 'currentColor' : 'none'} />
         </button>
+        {product.origin === 'user' && (
+          <button type="button" className="catalog-row-icon" aria-label={`Edit ${title}`} title="Edit" onClick={() => onEdit(product)}>
+            <Pencil size={12} />
+          </button>
+        )}
         <button type="button" className="catalog-row-icon" aria-label={`Details for ${title}`} title="Details" onClick={() => onDetails(product)}>
           <Info size={13} />
         </button>

@@ -12,6 +12,8 @@ export interface FurniturePreset {
   depth: number;
   height: number;
   placement: Placement;
+  /** Also stands on the other: on furniture when dropped onto it, on the floor elsewhere. */
+  flexiblePlacement?: boolean;
   rotation?: number;
   clearance?: Partial<Clearance>;
   shape?: Shape;
@@ -775,7 +777,7 @@ export const PRESETS: readonly FurniturePreset[] = [
     color: PLANT_GREEN,
   },
   {
-    // Stands on a desk, shelf or sideboard like a monitor.
+    // Goes onto a desk, shelf or sideboard like a monitor, or onto the floor when dropped there.
     id: 'plant-small',
     label: 'Small plant',
     name: 'Plant',
@@ -785,6 +787,7 @@ export const PRESETS: readonly FurniturePreset[] = [
     depth: 20,
     height: 30,
     placement: 'surface',
+    flexiblePlacement: true,
     shape: ROUND,
     color: PLANT_GREEN,
   },

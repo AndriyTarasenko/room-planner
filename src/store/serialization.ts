@@ -294,6 +294,7 @@ function parseFurniture(raw: Json): FurnitureItem {
     color: isHexColor(raw.color) ? raw.color : CATEGORIES[category].color,
     notes: str(raw.notes, '', 5000),
     placement: oneOf(raw.placement, ['floor', 'surface'] as const, preset.placement),
+    flexiblePlacement: bool(raw.flexiblePlacement, false),
     ignoreCollisions: bool(raw.ignoreCollisions, false),
     clearance: parseClearance(raw.clearance),
     shape: parseShape(raw.shape, width, depth),

@@ -1,10 +1,12 @@
-import { ExternalLink, Plus, Star, Trash2 } from 'lucide-react';
+import { ExternalLink, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { CATALOG_CATEGORIES } from '../../catalog/categories';
+import { productStandsOn } from '../../catalog/editProduct';
 import { productTitle } from '../../catalog/format';
 import { placeProduct } from '../../catalog/placeProduct';
 import { type FurnitureProduct, GENERIC_MANUFACTURER } from '../../catalog/types';
 import { useUserCatalog, userCatalogStore } from '../../catalog/userCatalog';
+import type { StandsOn } from '../../furniture/standsOn';
 import { formatNumber } from '../../utils/format';
 import { safeHttpUrl } from '../../utils/validate';
 import { Dialog } from '../ui/Dialog';
@@ -15,6 +17,8 @@ const ORIGIN_LABEL: Record<FurnitureProduct['origin'], string> = {
   user: 'My furniture (this browser)',
   live: 'Online result',
 };
+
+const STANDS_ON_LABEL: Record<StandsOn, string> = { floor: 'Floor', surface: 'Furniture', both: 'Floor or furniture' };
 
 /** Where the dimensions come from, in words. */
 function dimensionsSource(p: FurnitureProduct): string {
@@ -27,7 +31,14 @@ function dimensionsSource(p: FurnitureProduct): string {
   return p.source && !safeHttpUrl(p.source) ? p.source : 'Unknown';
 }
 
-export function ProductDetailsDialog({ product, onClose }: { product: FurnitureProduct | null; onClose: () => void }) {
+interface Props {
+  product: FurnitureProduct | null;
+  onClose: () => void;
+  /** Opens the edit form of a saved product (My furniture). */
+  onEdit: (product: FurnitureProduct) => void;
+}
+
+export function ProductDetailsDialog({ product, onClose, onEdit }: Props) {
   return (
     <Dialog
       open={product !== null}
@@ -35,12 +46,12 @@ export function ProductDetailsDialog({ product, onClose }: { product: FurnitureP
       title={product ? productTitle(product) : ''}
       description={product ? [product.manufacturer, product.variant].filter(Boolean).join(' · ') : undefined}
     >
-      {product && <Details key={product.id} product={product} onClose={onClose} />}
+      {product && <Details key={product.id} product={product} onClose={onClose} onEdit={onEdit} />}
     </Dialog>
   );
 }
 
-function Details({ product, onClose }: { product: FurnitureProduct; onClose: () => void }) {
+function Details({ product, onClose, onEdit }: { product: FurnitureProduct; onClose: () => void; onEdit: (product: FurnitureProduct) => void }) {
   const favorite = useUserCatalog((s) => s.favorites.includes(product.id));
   const [confirmRemove, setConfirmRemove] = useState(false);
   const pageUrl = safeHttpUrl(product.productUrl);
@@ -51,6 +62,7 @@ function Details({ product, onClose }: { product: FurnitureProduct; onClose: () 
   const listed = typeof product.metadata?.listedSize === 'string' ? product.metadata.listedSize : null;
   const rows: [string, string][] = [
     ['Category', CATALOG_CATEGORIES[product.category].label],
+    ['Stands on', STANDS_ON_LABEL[productStandsOn(product)]],
     ...(product.articleNumber ? [['Article number', product.articleNumber] as [string, string]] : []),
     ...(listed ? [['Sold as', product.category === 'bed' ? `${listed} (mattress size)` : listed] as [string, string]] : []),
     ['Catalog', ORIGIN_LABEL[product.origin]],
@@ -111,6 +123,16 @@ function Details({ product, onClose }: { product: FurnitureProduct; onClose: () 
         >
           <Star size={16} fill={favorite ? 'currentColor' : 'none'} />
         </button>
+        {product.origin === 'user' && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => onEdit(product)}
+          >
+            <Pencil size={15} />
+            Edit
+          </button>
+        )}
         {product.origin === 'user' && (
           <button
             type="button"

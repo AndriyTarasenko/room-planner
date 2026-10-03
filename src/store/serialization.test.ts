@@ -76,7 +76,8 @@ describe('project schema', () => {
     expect(migrated.version).toBeUndefined();
 
     const project = parseProjectJson(JSON.stringify(V1_FILE));
-    expect(project.layouts[0].furniture[0]).toEqual(V1_FILE.layouts[0].furniture[0]);
+    // Files from before floor-or-furniture objects have none.
+    expect(project.layouts[0].furniture[0]).toEqual({ ...V1_FILE.layouts[0].furniture[0], flexiblePlacement: false });
     expect(project.plans[0].rooms).toHaveLength(1);
     expect(project.plans[0].rooms[0]).toMatchObject({ id: V1_FILE.room.id, openings: [] });
     expect(roomRect(project.plans[0].rooms[0])).toEqual({ x: 0, y: 0, width: V1_FILE.room.width, depth: V1_FILE.room.depth });
@@ -150,7 +151,8 @@ describe('floor plans in project files', () => {
   it('migrates a version 2 project to one room at the plan origin, keeping the furniture as it was', () => {
     const project = parseProjectJson(JSON.stringify(V2_FILE));
     expect(project.plans[0].rooms).toEqual([{ id: 'room_1', name: 'Room 1', corners: rectCorners(0, 0, 400, 300), walls: defaultWalls(), openings: [] }]);
-    expect(project.layouts[0].furniture[0]).toEqual(V1_FILE.layouts[0].furniture[0]);
+    // Files from before floor-or-furniture objects have none.
+    expect(project.layouts[0].furniture[0]).toEqual({ ...V1_FILE.layouts[0].furniture[0], flexiblePlacement: false });
   });
 
   it('round-trips rooms, walls, doors and windows', () => {
@@ -420,6 +422,21 @@ describe('round furniture in project files', () => {
       ['pouf', 'round'],
       ['plant', 'round'],
     ]);
+  });
+
+  it('round-trips objects that stand on the floor or on furniture', () => {
+    const project = createSampleProject();
+    const plant = productToItem(findBuiltInProduct('generic:plant-small')!, { x: 300, y: 100 });
+    expect(plant).toMatchObject({ placement: 'surface', flexiblePlacement: true });
+    project.layouts[0].furniture.push({ ...plant, placement: 'floor' });
+    const restored = parseProjectJson(serializeProject(project)).layouts[0].furniture.at(-1);
+    expect(restored).toEqual({ ...plant, placement: 'floor' });
+  });
+
+  it('reads saved products that stand on the floor or on furniture', () => {
+    const raw = { id: 'custom:2', manufacturer: 'Custom', productName: 'Lamp', category: 'other', kind: 'generic', width: 25, depth: 25, height: 50 };
+    expect(parseProduct({ ...raw, placement: 'floor', flexiblePlacement: true }, 'user')).toMatchObject({ placement: 'floor', flexiblePlacement: true });
+    expect(parseProduct({ ...raw, flexiblePlacement: 'yes' }, 'user')).not.toHaveProperty('flexiblePlacement');
   });
 
   it('keeps round shapes of saved products', () => {

@@ -45,6 +45,7 @@ export function productToItem(product: FurnitureProduct, position: Point): Furni
     color: isHexColor(product.defaultColor) ? product.defaultColor : CATEGORIES[category].color,
     notes: '',
     placement: product.placement ?? defaults.placement,
+    flexiblePlacement: product.flexiblePlacement ?? false,
     ignoreCollisions: false,
     clearance: { ...EMPTY_CLEARANCE, ...(product.clearance ?? defaults.clearance) },
     shape: product.shape ?? { kind: 'rect' },
