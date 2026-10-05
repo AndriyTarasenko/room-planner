@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Group, Text } from 'react-konva';
 import { isCircle, lArms } from '../geometry/footprint';
 import { localToWorld, normalizeAngle } from '../geometry/rect';
@@ -29,7 +30,8 @@ export function LabelsLayer({ items, vp }: { items: readonly FurnitureItem[]; vp
   );
 }
 
-function ItemLabel({ item, vp, hasItemsOnTop }: { item: FurnitureItem; vp: Viewport; hasItemsOnTop: boolean }) {
+/** Only the labels of items that changed are laid out again while something is dragged. */
+const ItemLabel = memo(function ItemLabel({ item, vp, hasItemsOnTop }: { item: FurnitureItem; vp: Viewport; hasItemsOnTop: boolean }) {
   const name = item.name || 'Object';
   const dims = formatFootprint(item.width, item.depth, isCircle(item));
   const nameFont = `500 ${NAME_SIZE}px ${FONT_FAMILY}`;
@@ -123,4 +125,4 @@ function ItemLabel({ item, vp, hasItemsOnTop }: { item: FurnitureItem; vp: Viewp
       )}
     </Group>
   );
-}
+});

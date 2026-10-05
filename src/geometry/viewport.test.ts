@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_ZOOM, type Pinch, centeredViewport, pinchView, viewToWorld } from './viewport';
+import { MAX_ZOOM, type Pinch, centeredViewport, pinchView, stageTransformFor, viewToWorld, worldToView } from './viewport';
 
 const plan = { minX: 0, minY: 0, maxX: 400, maxY: 300 };
 const fit = (zoom: number) => centeredViewport(plan, 800, 600, 64, zoom);
@@ -46,5 +46,27 @@ describe('pinchView', () => {
     expect(view.zoom).toBe(MAX_ZOOM);
     expect(view.pan.x).toBeCloseTo(0);
     expect(view.pan.y).toBeCloseTo(0);
+  });
+});
+
+describe('stageTransformFor', () => {
+  it('puts every plan point where the target view would draw it', () => {
+    const drawn = fit(1.3);
+    const target = fit(2.1);
+    const pan = { x: -40, y: 25 };
+    const t = stageTransformFor(drawn, target, pan);
+    for (const p of [{ x: 0, y: 0 }, { x: 400, y: 300 }, { x: 123, y: -45 }]) {
+      const inStage = worldToView(p, drawn);
+      const onScreen = worldToView(p, target);
+      expect(t.x + inStage.x * t.scale).toBeCloseTo(onScreen.x + pan.x);
+      expect(t.y + inStage.y * t.scale).toBeCloseTo(onScreen.y + pan.y);
+    }
+  });
+
+  it('is just the pan when the view is drawn for the target', () => {
+    const t = stageTransformFor(fit(1.5), fit(1.5), { x: 7, y: -3 });
+    expect(t.scale).toBe(1);
+    expect(t.x).toBeCloseTo(7);
+    expect(t.y).toBeCloseTo(-3);
   });
 });

@@ -74,3 +74,13 @@ export function pinchView(from: Pinch, to: Pinch, zoom: number, pan: Point, fit:
   const zoomed = panForZoom(from.center, pan, fit(zoom), fit(next));
   return { zoom: next, pan: { x: zoomed.x + to.center.x - from.center.x, y: zoomed.y + to.center.y - from.center.y } };
 }
+
+/**
+ * Stage scale and position that make a plan drawn for `drawn` look as it would drawn for
+ * `target` with the stage at `pan`. A pinch moves the drawing this way and redraws the plan
+ * for the new view only when it ends.
+ */
+export function stageTransformFor(drawn: Viewport, target: Viewport, pan: Point): { scale: number; x: number; y: number } {
+  const scale = target.scale / drawn.scale;
+  return { scale, x: pan.x + target.originX - drawn.originX * scale, y: pan.y + target.originY - drawn.originY * scale };
+}

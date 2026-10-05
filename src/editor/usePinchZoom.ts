@@ -1,7 +1,7 @@
 import Konva from 'konva';
 import { type RefObject, useEffect } from 'react';
 import type { Point } from '../geometry/rect';
-import { type Pinch, centeredViewport, pinchView } from '../geometry/viewport';
+import { type Pinch, type Viewport, centeredViewport, pinchView, stageTransformFor } from '../geometry/viewport';
 import { canvasPadding } from './theme';
 import { useUi } from './uiStore';
 
@@ -18,6 +18,9 @@ function pinchOf(pointers: Map<number, Point>): Pinch | null {
  * finger lands until the last one lifts, Konva sees none of the gesture, so nothing under the
  * fingers is dragged, tapped, drawn or measured. A pan, drag or measurement the first finger
  * already started gives way to the pinch.
+ *
+ * While the fingers move, the stage itself is scaled and moved, so the plan isn't rendered
+ * again for every step; the view is saved (and the plan redrawn for it) when a finger lifts.
  */
 export function usePinchZoom(containerRef: RefObject<HTMLElement | null>, stageRef: RefObject<Konva.Stage | null>) {
   useEffect(() => {
@@ -27,6 +30,8 @@ export function usePinchZoom(containerRef: RefObject<HTMLElement | null>, stageR
     const pointers = new Map<number, Point>();
     let pinching = false;
     let last: Pinch | null = null;
+    /** The view the fingers have moved to, and the viewport the plan is still drawn for. */
+    let preview: { zoom: number; pan: Point; drawn: Viewport } | null = null;
 
     const local = (e: PointerEvent): Point => {
       const rect = el.getBoundingClientRect();
@@ -49,15 +54,35 @@ export function usePinchZoom(containerRef: RefObject<HTMLElement | null>, stageR
     const zoomTo = (next: Pinch) => {
       const from = last;
       last = next;
-      const { zoom, pan, fitBox, liveBox, setView } = useUi.getState();
+      const { zoom, pan, fitBox, liveBox } = useUi.getState();
       const box = fitBox ?? liveBox;
-      if (!from || !box) return;
+      const stage = stageRef.current;
+      if (!from || !box || !stage) return;
       const rect = el.getBoundingClientRect();
       const width = Math.round(rect.width);
       const height = Math.round(rect.height);
       const fit = (z: number) => centeredViewport(box, width, height, canvasPadding(width, height), z);
-      const view = pinchView(from, next, zoom, pan, fit);
-      setView(view.zoom, view.pan);
+      preview ??= { zoom, pan, drawn: fit(zoom) };
+      const view = pinchView(from, next, preview.zoom, preview.pan, fit);
+      preview = { ...preview, ...view };
+      const t = stageTransformFor(preview.drawn, fit(view.zoom), view.pan);
+      stage.scale({ x: t.scale, y: t.scale });
+      stage.position({ x: t.x, y: t.y });
+      stage.batchDraw();
+    };
+
+    /** Saves the previewed view; the plan is then drawn for it at its true scale. */
+    const commit = () => {
+      if (!preview) return;
+      const { zoom, pan } = preview;
+      preview = null;
+      const stage = stageRef.current;
+      if (stage) {
+        stage.scale({ x: 1, y: 1 });
+        stage.position(pan);
+        stage.batchDraw();
+      }
+      useUi.getState().setView(zoom, pan);
     };
 
     const down = (e: PointerEvent) => {
@@ -79,6 +104,7 @@ export function usePinchZoom(containerRef: RefObject<HTMLElement | null>, stageR
       pointers.delete(e.pointerId);
       if (!pinching) return;
       e.stopPropagation();
+      commit();
       // With one finger left the view holds still; a second finger pinches again.
       last = pinchOf(pointers);
     };
@@ -87,7 +113,10 @@ export function usePinchZoom(containerRef: RefObject<HTMLElement | null>, stageR
     const touch = (e: TouchEvent) => {
       if (!pinching) return;
       e.stopPropagation();
-      if (e.touches.length === 0) pinching = false;
+      if (e.touches.length === 0) {
+        commit();
+        pinching = false;
+      }
     };
 
     // Capture on the container runs before Konva's listeners on its canvas and on the window.
@@ -97,6 +126,7 @@ export function usePinchZoom(containerRef: RefObject<HTMLElement | null>, stageR
     el.addEventListener('pointercancel', up, true);
     for (const type of NATIVE_TOUCH_EVENTS) el.addEventListener(type, touch, true);
     return () => {
+      commit();
       el.removeEventListener('pointerdown', down, true);
       el.removeEventListener('pointermove', move, true);
       el.removeEventListener('pointerup', up, true);

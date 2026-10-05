@@ -34,6 +34,10 @@ import { CANVAS, canvasPadding } from './theme';
 import { useUi } from './uiStore';
 import { usePinchZoom } from './usePinchZoom';
 
+// Phones have 3× (or denser) screens. At 2× the plan looks the same there, but every frame of a
+// pan or pinch fills less than half the pixels.
+Konva.pixelRatio = Math.min(Konva.pixelRatio, 2);
+
 /** The 2D top-down editor: floor plan, furniture, and all visual feedback. */
 export function RoomCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -133,7 +137,9 @@ export function RoomCanvas() {
     useUi.getState().setView(nextZoom, panForZoom(pointer, pan, vp, after));
   };
 
-  const handleStageDrag = (e: KonvaEventObject<DragEvent>) => {
+  // Konva moves the stage while the plan is dragged; the pan is saved when the drag ends, so
+  // the plan isn't rendered again for every step.
+  const handleStageDragEnd = (e: KonvaEventObject<DragEvent>) => {
     const stage = stageRef.current;
     if (stage && e.target === stage) useUi.getState().setPan({ x: stage.x(), y: stage.y() });
   };
@@ -183,8 +189,7 @@ export function RoomCanvas() {
           // Konva pans on any touch, whatever dragButtons says: while measuring, one finger
           // measures and two fingers pan (usePinchZoom).
           draggable={!(measuring && touch)}
-          onDragMove={handleStageDrag}
-          onDragEnd={handleStageDrag}
+          onDragEnd={handleStageDragEnd}
           onWheel={handleWheel}
           onClick={deselectIfBackground}
           onTap={deselectIfBackground}

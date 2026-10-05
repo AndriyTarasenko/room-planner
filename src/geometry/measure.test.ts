@@ -189,4 +189,14 @@ describe('floor usage', () => {
     expect(usage.total).toBe(160_000);
     expect(usage.free).toBeCloseTo(150_000, -1);
   });
+
+  it('measures turned and round footprints by their real outline', () => {
+    const floor = rectPolygon({ x: 0, y: 0, width: 300, depth: 300 });
+    const turned = floorUsage(floor, worldParts({ x: 150, y: 150, width: 100, depth: 50, rotation: 30, shape: RECT }));
+    expect(Math.abs(turned.free - (90_000 - 5_000))).toBeLessThan(60);
+    // Round items are 48-gons inside the ellipse.
+    const round = floorUsage(floor, worldParts({ x: 150, y: 150, width: 100, depth: 100, rotation: 0, shape: { kind: 'round' } }));
+    const polygon48 = 24 * 50 ** 2 * Math.sin((2 * Math.PI) / 48);
+    expect(Math.abs(round.free - (90_000 - polygon48))).toBeLessThan(60);
+  });
 });

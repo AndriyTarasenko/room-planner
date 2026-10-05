@@ -1,5 +1,5 @@
 import { polygonRect } from './bounds';
-import { type Polygon, pointInConvexPolygon, polygonArea } from './polygon';
+import { type Polygon, polygonArea } from './polygon';
 import { type Point, boxOfPoints } from './rect';
 
 export interface FloorUsage {
@@ -53,17 +53,21 @@ export function floorUsage(room: readonly Point[], footprints: readonly Polygon[
 
   for (const poly of footprints) {
     const b = boxOfPoints(poly);
-    const c0 = Math.max(0, Math.floor((b.minX - x0) / cell));
-    const c1 = Math.min(cols - 1, Math.floor((b.maxX - x0) / cell));
     const r0 = Math.max(0, Math.floor((b.minY - y0) / cell));
     const r1 = Math.min(rows - 1, Math.floor((b.maxY - y0) / cell));
     for (let r = r0; r <= r1; r++) {
       const cy = y0 + Math.min((r + 0.5) * cell, depth);
+      // Footprint parts are convex, so the row's center line crosses each in one span: cells
+      // centered on it are covered (this runs for every step of a drag).
+      const span = convexSpanAt(poly, cy);
+      if (!span) continue;
+      const c0 = Math.max(0, Math.floor((span.min - x0) / cell));
+      const c1 = Math.min(cols - 1, Math.floor((span.max - x0) / cell));
       for (let c = c0; c <= c1; c++) {
         const idx = r * cols + c;
         if (covered[idx] || (onFloor && !onFloor[idx])) continue;
         const cx = x0 + Math.min((c + 0.5) * cell, width);
-        if (pointInConvexPolygon({ x: cx, y: cy }, poly)) covered[idx] = 1;
+        if (cx >= span.min && cx <= span.max) covered[idx] = 1;
       }
     }
   }
@@ -78,6 +82,26 @@ export function floorUsage(room: readonly Point[], footprints: readonly Polygon[
   const total = rect ? rect.width * rect.depth : polygonArea(room as Polygon);
   const free = Math.max(0, total - coveredArea);
   return { total, free, ratio: total > 0 ? free / total : 0 };
+}
+
+/** Where the horizontal line at `y` crosses a convex polygon, edges included; null when it misses. */
+function convexSpanAt(poly: Polygon, y: number): { min: number; max: number } | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    if ((a.y < y && b.y < y) || (a.y > y && b.y > y)) continue;
+    if (a.y === b.y) {
+      min = Math.min(min, a.x, b.x);
+      max = Math.max(max, a.x, b.x);
+    } else {
+      const x = a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y);
+      min = Math.min(min, x);
+      max = Math.max(max, x);
+    }
+  }
+  return min <= max ? { min, max } : null;
 }
 
 /** Adds up the usage of several rooms. */

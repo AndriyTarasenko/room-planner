@@ -1,6 +1,7 @@
 import type { Context } from 'konva/lib/Context';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type { Shape as KonvaShape } from 'konva/lib/Shape';
+import { memo } from 'react';
 import { Group, Line, Shape, Text } from 'react-konva';
 import { polygonLabelPoint } from '../geometry/bounds';
 import { rayToBoundary } from '../geometry/polygon';
@@ -40,7 +41,7 @@ const tracePath = (ctx: Context, corners: readonly Point[]) => {
 };
 
 /** Floors and grids of all rooms, in plan coordinates. Clicking a floor selects its room. */
-export function RoomFloors({ rooms, settings, scale }: { rooms: readonly Room[]; settings: Settings; scale: number }) {
+export const RoomFloors = memo(function RoomFloors({ rooms, settings, scale }: { rooms: readonly Room[]; settings: Settings; scale: number }) {
   const grid = settings.gridSize;
   // Hide grid lines that would be denser than 5 px; major lines every metre (or 5 cells).
   const showMinor = settings.gridVisible && grid * scale >= 5;
@@ -78,10 +79,10 @@ export function RoomFloors({ rooms, settings, scale }: { rooms: readonly Room[];
       ))}
     </Group>
   );
-}
+});
 
 /** Walls of all rooms, and a dashed edge where a wall is left open. */
-export function RoomWalls({ rooms, scale }: { rooms: readonly Room[]; scale: number }) {
+export const RoomWalls = memo(function RoomWalls({ rooms, scale }: { rooms: readonly Room[]; scale: number }) {
   const dash = [6 / scale, 4 / scale];
   return (
     <Group>
@@ -123,7 +124,7 @@ export function RoomWalls({ rooms, scale }: { rooms: readonly Room[]; scale: num
       ))}
     </Group>
   );
-}
+});
 
 const NAME_FONT = 12;
 const META_FONT = 11;
@@ -132,7 +133,7 @@ const META_FONT = 11;
  * Room names with size and area, drawn in screen space (crisp at any zoom) between the floors
  * and the furniture, at the widest spot of the room. Lines that don't fit are left out.
  */
-export function RoomLabels({ rooms, vp, hiddenId }: { rooms: readonly Room[]; vp: Viewport; hiddenId: string | null }) {
+export const RoomLabels = memo(function RoomLabels({ rooms, vp, hiddenId }: { rooms: readonly Room[]; vp: Viewport; hiddenId: string | null }) {
   return (
     <Group listening={false}>
       {rooms.map((room) => {
@@ -159,4 +160,4 @@ export function RoomLabels({ rooms, vp, hiddenId }: { rooms: readonly Room[]; vp
       })}
     </Group>
   );
-}
+});
