@@ -2,6 +2,7 @@ import { Copy, CopyPlus, Ellipsis, Layers2, Pencil, Plus, Trash2, Unlink } from 
 import { useState } from 'react';
 import { projectStore, useEditor } from '../store';
 import type { Layout } from '../types';
+import { undoHint } from '../hooks/useMediaQuery';
 import { layoutNames, unlinkLayoutPlan } from './projectActions';
 import { Menu, MenuItem, MenuSeparator } from './ui/Menu';
 import { toast } from './ui/toastStore';
@@ -179,7 +180,7 @@ function LayoutTab({ layout, active, renaming, canDelete, sharedWith, onStartRen
                 onSelect={() => {
                   close();
                   deleteLayout(layout.id);
-                  toast(`Deleted “${layout.name}”. Press Ctrl+Z to restore it.`);
+                  toast(`Deleted “${layout.name}”. ${undoHint()} to restore it.`);
                 }}
               >
                 Delete layout

@@ -2,6 +2,7 @@ import { CircleCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { type Issue, analyzeLayoutCached, doorName } from '../furniture/analysis';
 import { useCollapsedGroups } from '../hooks/useCollapsedGroups';
+import { useMobileLayout, useTouchScreen } from '../hooks/useMediaQuery';
 import { roomArea, roomRect } from '../plan/shape';
 import type { Room } from '../types';
 import { projectStore, selectActiveLayout, selectRooms, useEditor } from '../store';
@@ -29,6 +30,8 @@ export function LayoutOverview() {
   const analysis = analyzeLayoutCached(items, rooms);
   const select = (id: string) => projectStore.getState().select(id);
   const { collapsed, toggle } = useCollapsedGroups(OVERVIEW_COLLAPSED_KEY);
+  const mobile = useMobileLayout();
+  const touch = useTouchScreen();
   // A folded section shows how many entries it hides instead of its usual note.
   const folding = (id: string, count: number, aside?: ReactNode) => ({
     collapsed: collapsed.has(id),
@@ -95,7 +98,7 @@ export function LayoutOverview() {
         </div>
       </Section>
 
-      <Section title="Rooms" {...folding('rooms', rooms.length, <span className="section-hint">click to edit</span>)}>
+      <Section title="Rooms" {...folding('rooms', rooms.length, <span className="section-hint">{touch ? 'tap' : 'click'} to edit</span>)}>
         <div className="object-list">
           {rooms.map((room) => {
             const usage = analysis.roomUsage.get(room.id);
@@ -127,7 +130,7 @@ export function LayoutOverview() {
       <Section title="Objects" {...folding('objects', items.length)}>
         {items.length === 0 ? (
           <p className="empty-note" style={{ margin: 0 }}>
-            This layout is empty. Add furniture from the library on the left.
+            This layout is empty. Add furniture from the {mobile ? 'Furniture panel' : 'library on the left'}.
           </p>
         ) : (
           <div className="object-list">

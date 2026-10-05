@@ -10,14 +10,20 @@ import { Pill } from './MeasurementsLayer';
 import { CANVAS, PILL_H, pillWidth } from './theme';
 
 const RESIZE_ANCHORS = ['middle-left', 'middle-right', 'top-center', 'bottom-center'];
-/** Diameter of the round rotate handle, in px. */
-const ROTATE_HANDLE = 18;
-/** Distance from the item's top edge to the rotate handle's center, in px. */
-const ROTATE_OFFSET = 30;
+
+/**
+ * Handle sizes in px, bigger for a finger than for a mouse: the resize anchors, the diameter of
+ * the round rotate handle, and the distance from the item's top edge to its center.
+ */
+const HANDLES = {
+  mouse: { anchor: 8, rotate: 18, rotateOffset: 30 },
+  touch: { anchor: 14, rotate: 28, rotateOffset: 40 },
+};
 
 /** Lucide's rotate-cw icon (24 × 24 units), drawn inside the rotate handle and used as its cursor. */
 const ROTATE_ICON = ['M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8', 'M21 3v5h-5'];
-const ICON_SIZE = 11;
+/** The arrow's size relative to the disc. */
+const ICON_SCALE = 0.6;
 
 // A dark arrow with a white halo, so the cursor shows on the floor and on walls alike.
 const cursorSvg =
@@ -38,7 +44,7 @@ function drawRotateHandle(ctx: Konva.Context, shape: Konva.Shape) {
   ctx.fillStrokeShape(shape);
 
   iconPaths ??= ROTATE_ICON.map((d) => new Path2D(d));
-  const s = ICON_SIZE / 24;
+  const s = (shape.width() * ICON_SCALE) / 24;
   const native = ctx._context;
   native.save();
   native.shadowColor = 'transparent';
@@ -62,13 +68,13 @@ function hitRotateHandle(ctx: Konva.Context, shape: Konva.Shape) {
 }
 
 /** Runs on every transformer update, after Konva has reset the anchors to their defaults. */
-function styleAnchor(anchor: Konva.Rect) {
+const styleAnchor = (size: number) => (anchor: Konva.Rect) => {
   if (!anchor.hasName('rotater')) return;
   anchor.setAttrs({
-    width: ROTATE_HANDLE,
-    height: ROTATE_HANDLE,
-    offsetX: ROTATE_HANDLE / 2,
-    offsetY: ROTATE_HANDLE / 2,
+    width: size,
+    height: size,
+    offsetX: size / 2,
+    offsetY: size / 2,
     shadowColor: '#000',
     shadowOpacity: 0.16,
     shadowBlur: 3,
@@ -76,25 +82,27 @@ function styleAnchor(anchor: Konva.Rect) {
   });
   anchor.sceneFunc(drawRotateHandle);
   anchor.hitFunc(hitRotateHandle);
-}
+};
+const STYLE_ANCHOR = { mouse: styleAnchor(HANDLES.mouse.rotate), touch: styleAnchor(HANDLES.touch.rotate) };
 
 /**
  * Selection box of the selected furniture: edge handles resize it, the round handle above it
  * turns it freely. FurnitureNode turns the gestures into item geometry (and snaps rotations).
  */
-export function ItemTransformer({ ref, resizable }: { ref: Ref<Konva.Transformer>; resizable: boolean }) {
+export function ItemTransformer({ ref, resizable, touch }: { ref: Ref<Konva.Transformer>; resizable: boolean; touch: boolean }) {
+  const sizes = touch ? HANDLES.touch : HANDLES.mouse;
   return (
     <Transformer
       ref={ref}
       rotateEnabled
       enabledAnchors={resizable ? RESIZE_ANCHORS : []}
-      rotateAnchorOffset={ROTATE_OFFSET}
+      rotateAnchorOffset={sizes.rotateOffset}
       rotateAnchorCursor={ROTATE_CURSOR}
-      anchorStyleFunc={styleAnchor}
+      anchorStyleFunc={touch ? STYLE_ANCHOR.touch : STYLE_ANCHOR.mouse}
       keepRatio={false}
       flipEnabled={false}
       ignoreStroke
-      anchorSize={8}
+      anchorSize={sizes.anchor}
       anchorCornerRadius={2}
       anchorStroke={CANVAS.accent}
       anchorFill="#ffffff"
@@ -107,12 +115,13 @@ export function ItemTransformer({ ref, resizable }: { ref: Ref<Konva.Transformer
 }
 
 /** The angle of an item being turned with the rotate handle, shown just beyond the handle. */
-export function RotationReadout({ item, vp }: { item: FurnitureItem; vp: Viewport }) {
+export function RotationReadout({ item, vp, touch }: { item: FurnitureItem; vp: Viewport; touch: boolean }) {
+  const sizes = touch ? HANDLES.touch : HANDLES.mouse;
   const text = `${formatNumber(item.rotation)}°`;
   const edge = worldToView(localToWorld({ x: 0, y: -item.depth / 2 }, frameOf(item)), vp);
   const up = rotateVector({ x: 0, y: -1 }, item.rotation);
   // Far enough out that the pill clears the handle whichever way the item faces.
-  const distance = ROTATE_OFFSET + ROTATE_HANDLE / 2 + 8 + (Math.abs(up.x) * pillWidth(text)) / 2 + (Math.abs(up.y) * PILL_H) / 2;
+  const distance = sizes.rotateOffset + sizes.rotate / 2 + 8 + (Math.abs(up.x) * pillWidth(text)) / 2 + (Math.abs(up.y) * PILL_H) / 2;
   return (
     <Group listening={false}>
       <Pill at={{ x: edge.x + up.x * distance, y: edge.y + up.y * distance }} text={text} fill={CANVAS.accent} />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { undoHint } from '../hooks/useMediaQuery';
 import { roomBounds } from '../plan/shape';
 import { projectStore, selectRooms } from '../store';
 import { ROOM_LIMITS } from '../store/defaults';
@@ -12,7 +13,7 @@ export function NewPlanDialog({ open, onClose }: { open: boolean; onClose: () =>
       open={open}
       onClose={onClose}
       title="New plan"
-      description="Replaces all rooms and layouts with one empty room. Add more rooms, doors and windows from the Floor plan tools. Export first if you want to keep a copy. Ctrl+Z undoes this."
+      description={`Replaces all rooms and layouts with one empty room. Add more rooms, doors and windows from the Floor plan tools. Export first if you want to keep a copy. ${undoHint()} to take it back.`}
     >
       {open && <NewPlanForm onDone={onClose} />}
     </Dialog>

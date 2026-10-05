@@ -6,6 +6,7 @@ import { PRODUCT_DRAG_TYPE, droppedProduct, placeProduct } from '../catalog/plac
 import { analyzeLayoutCached } from '../furniture/analysis';
 import { centeredViewport, clampZoom, panForZoom, viewToWorld } from '../geometry/viewport';
 import { useElementSize } from '../hooks/useElementSize';
+import { useTouchScreen } from '../hooks/useMediaQuery';
 import { planExtent } from '../plan/openings';
 import { roomContaining } from '../plan/rooms';
 import {
@@ -29,8 +30,9 @@ import { RoomHandles } from './RoomHandles';
 import { RulerCapture, RulerOverlay } from './RulerLayer';
 import { ClearanceZones, ConflictRegions, DeskGuides } from './ZoneLayers';
 import { PLAN_DRAG_TYPE, addPlanElement, droppedPlanTool } from './planTools';
-import { CANVAS, CANVAS_PADDING } from './theme';
+import { CANVAS, canvasPadding } from './theme';
 import { useUi } from './uiStore';
+import { usePinchZoom } from './usePinchZoom';
 
 /** The 2D top-down editor: floor plan, furniture, and all visual feedback. */
 export function RoomCanvas() {
@@ -38,6 +40,8 @@ export function RoomCanvas() {
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const size = useElementSize(containerRef);
+  usePinchZoom(containerRef, stageRef);
+  const touch = useTouchScreen();
 
   const rooms = useEditor(selectRooms);
   const items = useEditor(selectItems);
@@ -59,7 +63,7 @@ export function RoomCanvas() {
   const liveBox = useMemo(() => planExtent(rooms), [rooms]);
   const fitBox = frozenBox ?? liveBox;
   const vp = useMemo(
-    () => centeredViewport(fitBox, size.width, size.height, CANVAS_PADDING, zoom),
+    () => centeredViewport(fitBox, size.width, size.height, canvasPadding(size.width, size.height), zoom),
     [fitBox, size.width, size.height, zoom],
   );
   const analysis = analyzeLayoutCached(items, rooms);
@@ -125,7 +129,7 @@ export function RoomCanvas() {
     const factor = e.evt.ctrlKey ? Math.exp(-e.evt.deltaY * 0.01) : e.evt.deltaY > 0 ? 1 / 1.15 : 1.15;
     const nextZoom = clampZoom(zoom * factor);
     if (nextZoom === zoom) return;
-    const after = centeredViewport(fitBox, size.width, size.height, CANVAS_PADDING, nextZoom);
+    const after = centeredViewport(fitBox, size.width, size.height, canvasPadding(size.width, size.height), nextZoom);
     useUi.getState().setView(nextZoom, panForZoom(pointer, pan, vp, after));
   };
 
@@ -176,7 +180,9 @@ export function RoomCanvas() {
           height={size.height}
           x={pan.x}
           y={pan.y}
-          draggable
+          // Konva pans on any touch, whatever dragButtons says: while measuring, one finger
+          // measures and two fingers pan (usePinchZoom).
+          draggable={!(measuring && touch)}
           onDragMove={handleStageDrag}
           onDragEnd={handleStageDrag}
           onWheel={handleWheel}
@@ -217,8 +223,8 @@ export function RoomCanvas() {
               ))}
               <DeskGuides items={items} scale={vp.scale} />
               <ConflictRegions analysis={analysis} />
-              {selectedRoom && !drawing && <RoomHandles room={selectedRoom} scale={vp.scale} />}
-              {selectedL && !drawing && <LShapeHandles item={selectedL} scale={vp.scale} />}
+              {selectedRoom && !drawing && <RoomHandles room={selectedRoom} scale={vp.scale} touch={touch} />}
+              {selectedL && !drawing && <LShapeHandles item={selectedL} scale={vp.scale} touch={touch} />}
               {drawing && <DraftOutline scale={vp.scale} />}
             </Group>
             {drawing && <DraftCapture vp={vp} width={size.width} height={size.height} />}
@@ -237,8 +243,8 @@ export function RoomCanvas() {
           </Layer>
           {/* Selection handles on top of labels and distances, so they are never covered. */}
           <Layer listening={!drawing && !measuring}>
-            <ItemTransformer ref={transformerRef} resizable={!selectedL} />
-            {rotating && <RotationReadout item={rotating} vp={vp} />}
+            <ItemTransformer ref={transformerRef} resizable={!selectedL} touch={touch} />
+            {rotating && <RotationReadout item={rotating} vp={vp} touch={touch} />}
           </Layer>
         </Stage>
       )}

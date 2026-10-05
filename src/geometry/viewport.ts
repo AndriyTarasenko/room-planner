@@ -57,3 +57,20 @@ export function panForZoom(anchor: Point, pan: Point, before: Viewport, after: V
   const projected = worldToView(world, after);
   return { x: anchor.x - projected.x, y: anchor.y - projected.y };
 }
+
+/** Two fingers on the canvas: the point between them (canvas px) and how far apart they are. */
+export interface Pinch {
+  center: Point;
+  distance: number;
+}
+
+/**
+ * Zoom and pan after the fingers of a pinch move from `from` to `to`: the plan grows as much
+ * as the fingers spread, and the plan point between them follows them. `fit(zoom)` is the
+ * centered viewport at that zoom.
+ */
+export function pinchView(from: Pinch, to: Pinch, zoom: number, pan: Point, fit: (zoom: number) => Viewport): { zoom: number; pan: Point } {
+  const next = clampZoom(zoom * (to.distance / Math.max(1, from.distance)));
+  const zoomed = panForZoom(from.center, pan, fit(zoom), fit(next));
+  return { zoom: next, pan: { x: zoomed.x + to.center.x - from.center.x, y: zoomed.y + to.center.y - from.center.y } };
+}

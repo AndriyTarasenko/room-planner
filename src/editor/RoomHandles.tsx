@@ -19,7 +19,15 @@ interface Props {
   room: Room;
   /** Pixels per cm. */
   scale: number;
+  /** Bigger handles for a finger. */
+  touch: boolean;
 }
+
+/** Handle sizes in px: wall handles, corner handles, and the reach of each around it. */
+const HANDLES = {
+  mouse: { wallW: 30, wallH: 9, wallHit: 12, corner: 4.5, cornerHit: 14 },
+  touch: { wallW: 36, wallH: 12, wallHit: 24, corner: 7, cornerHit: 28 },
+};
 
 type Drag = { kind: 'wall' | 'corner' | 'move'; index: number } | null;
 
@@ -54,10 +62,12 @@ const angleOf = (f: WallFrame) => (Math.atan2(f.along.y, f.along.x) * 180) / Mat
 /**
  * Handles for the selected room: drag a wall to move it (the walls next to it keep their
  * direction, so corners stay square), drag a corner anywhere (for slanted walls), or drag the
- * name tag to move the whole room with its furniture. Double-click a wall to add a corner in
- * it, and a corner to remove it. Everything snaps to neighboring rooms; hold Alt to place freely.
+ * name tag to move the whole room with its furniture. Double-click (or double-tap) a wall to
+ * add a corner in it, and a corner to remove it. Everything snaps to neighboring rooms; hold
+ * Alt to place freely.
  */
-export function RoomHandles({ room, scale }: Props) {
+export function RoomHandles({ room, scale, touch }: Props) {
+  const size = touch ? HANDLES.touch : HANDLES.mouse;
   const threshold = SNAP_DISTANCE_PX / scale;
   const px = (v: number) => v / scale;
   const [drag, setDrag] = useState<Drag>(null);
@@ -199,10 +209,10 @@ export function RoomHandles({ room, scale }: Props) {
         if (drag && !(drag.kind === 'wall' && drag.index === index)) return null;
         const f = wallFrame(base, index);
         // Walls too short to grab on screen only get their corner handles.
-        if (!drag && f.length * scale < 44) return null;
+        if (!drag && f.length * scale < size.wallW + 14) return null;
         const at = pointOnWall(f, f.length / 2);
-        const w = px(30);
-        const h = px(9);
+        const w = px(size.wallW);
+        const h = px(size.wallH);
         return (
           <Rect
             key={`wall-${index}`}
@@ -219,12 +229,13 @@ export function RoomHandles({ room, scale }: Props) {
             stroke={CANVAS.accent}
             strokeWidth={1.5}
             strokeScaleEnabled={false}
-            hitStrokeWidth={12}
+            hitStrokeWidth={size.wallHit}
             draggable
             onDragStart={begin({ kind: 'wall', index })}
             onDragMove={handleWallMove(index)}
             onDragEnd={end}
             onDblClick={splitAt(index)}
+            onDblTap={splitAt(index)}
             onMouseEnter={(e) => setCursor(e, wallCursor(f))}
             onMouseLeave={(e) => setCursor(e, '')}
           />
@@ -237,17 +248,18 @@ export function RoomHandles({ room, scale }: Props) {
             name="room-corner-handle"
             x={p.x}
             y={p.y}
-            radius={px(4.5)}
+            radius={px(size.corner)}
             fill="#ffffff"
             stroke={CANVAS.accent}
             strokeWidth={1.5}
             strokeScaleEnabled={false}
-            hitStrokeWidth={14}
+            hitStrokeWidth={size.cornerHit}
             draggable
             onDragStart={begin({ kind: 'corner', index })}
             onDragMove={handleCornerMove(index)}
             onDragEnd={end}
             onDblClick={removeAt(index)}
+            onDblTap={removeAt(index)}
             onMouseEnter={(e) => setCursor(e, 'move')}
             onMouseLeave={(e) => setCursor(e, '')}
           />

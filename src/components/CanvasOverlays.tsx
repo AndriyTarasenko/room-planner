@@ -92,7 +92,8 @@ export function CanvasToolbar() {
   );
 }
 
-export function ZoomBar() {
+/** Zoom buttons; on a phone (`compact`) just −, the zoom that fits the plan, and +. */
+export function ZoomBar({ compact = false }: { compact?: boolean }) {
   const zoom = useUi((s) => s.zoom);
   const { setView, resetView } = useUi.getState();
   const shortcutsOpen = useShortcutsPanel((s) => s.open);
@@ -117,23 +118,29 @@ export function ZoomBar() {
         <button type="button" className="icon-btn" aria-label="Zoom in" data-tip="Zoom in (or scroll)" data-tip-pos="top" onClick={() => zoomBy(1.25)}>
           <Plus size={15} />
         </button>
-        <button type="button" className="icon-btn" aria-label="Fit plan" data-tip="Fit plan" data-tip-pos="top" onClick={resetView}>
-          <Maximize size={14} />
-        </button>
+        {!compact && (
+          <button type="button" className="icon-btn" aria-label="Fit plan" data-tip="Fit plan" data-tip-pos="top" onClick={resetView}>
+            <Maximize size={14} />
+          </button>
+        )}
       </div>
-      <div className="divider-v" />
-      <button
-        type="button"
-        className="icon-btn"
-        aria-label="Keyboard shortcuts"
-        aria-pressed={shortcutsOpen}
-        data-tip="Keyboard shortcuts (?)"
-        data-tip-pos="top"
-        data-tip-align="end"
-        onClick={toggleShortcuts}
-      >
-        <Keyboard size={15} />
-      </button>
+      {!compact && (
+        <>
+          <div className="divider-v" />
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Keyboard shortcuts"
+            aria-pressed={shortcutsOpen}
+            data-tip="Keyboard shortcuts (?)"
+            data-tip-pos="top"
+            data-tip-align="end"
+            onClick={toggleShortcuts}
+          >
+            <Keyboard size={15} />
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -215,7 +222,7 @@ export function CanvasStatus() {
           No conflicts
         </span>
       )}
-      <span className="status-chip ok num" title="Floor area not covered by furniture">
+      <span className="status-chip ok num status-usage" title="Floor area not covered by furniture">
         Free floor {formatArea(analysis.usage.free)} · {formatPercent(analysis.usage.ratio)}
       </span>
     </div>

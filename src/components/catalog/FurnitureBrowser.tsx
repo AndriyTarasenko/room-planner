@@ -13,6 +13,7 @@ import { ProductDetailsDialog } from './ProductDetailsDialog';
 import { ProductEditDialog } from './ProductEditDialog';
 import { ProductRow } from './ProductRow';
 import { useCollapsedGroups } from '../../hooks/useCollapsedGroups';
+import { useTouchScreen } from '../../hooks/useMediaQuery';
 
 const isDefined = <T,>(v: T | undefined): v is T => v !== undefined;
 
@@ -55,6 +56,7 @@ export function FurnitureBrowser() {
   const [importing, setImporting] = useState<LiveProductCandidate | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const { collapsed, toggle, collapseOnly } = useCollapsedGroups(LIBRARY_COLLAPSED_KEY);
+  const touch = useTouchScreen();
 
   const saved = useUserCatalog((s) => s.products);
   const favorites = useUserCatalog((s) => s.favorites);
@@ -94,7 +96,7 @@ export function FurnitureBrowser() {
             Furniture
           </h3>
           <span className="section-hint library-hint">
-            {filtering ? `${results.length} found` : 'Click or drag to add'}
+            {filtering ? `${results.length} found` : touch ? 'Tap to add' : 'Click or drag to add'}
             {!filtering && groupIds.length > 0 && (
               <button
                 type="button"

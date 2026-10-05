@@ -157,6 +157,8 @@ button {
 .canvas-host {
   position: absolute;
   inset: 0;
+  /* Fingers pan, pinch and drag the plan, not the page. */
+  touch-action: none;
 }
 
 /* ───────── Sections ───────── */
@@ -400,6 +402,13 @@ button {
   left: auto;
   right: 0;
   transform: none;
+}
+
+/* A tap leaves :hover on a touch screen, which would leave tooltips showing. */
+@media (hover: none) {
+  [data-tip]:hover::after {
+    display: none;
+  }
 }
 
 @keyframes tip-in {
@@ -2004,4 +2013,740 @@ kbd {
   .brand {
     width: auto;
   }
+}
+
+/* ───────── Mobile layout ───────── */
+
+/*
+ * [data-mobile] is set on <html> from MOBILE_QUERY (src/hooks/useMediaQuery.ts): phones, tablets
+ * in portrait and narrow windows. The canvas fills the screen between the top bar and a bottom
+ * bar that opens the panels as sheets. Controls grow to finger size, and fields use 16px text,
+ * below which iOS zooms the page into a field being edited.
+ */
+
+[data-mobile] {
+  --topbar-h: 48px;
+  --nav-h: 58px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  font-size: 14px;
+}
+
+[data-mobile] body {
+  overscroll-behavior: none;
+}
+
+[data-mobile] button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Rows: top bar, canvas, docked sheet (when one is open), bottom bar. */
+[data-mobile] .app {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: calc(var(--topbar-h) + var(--safe-top)) minmax(0, 1fr) auto calc(var(--nav-h) + var(--safe-bottom));
+  height: 100%;
+  height: 100dvh;
+}
+
+[data-mobile] .topbar {
+  gap: 4px;
+  padding: var(--safe-top) max(4px, var(--safe-right)) 0 max(6px, var(--safe-left));
+}
+
+[data-mobile] .topbar-actions {
+  gap: 0;
+}
+
+[data-mobile] .canvas-area {
+  grid-area: 2 / 1;
+}
+
+/* Layout tabs */
+[data-mobile] .tab {
+  height: 36px;
+  max-width: 180px;
+}
+
+[data-mobile] .tab-label {
+  font-size: 14px;
+  max-width: 150px;
+}
+
+[data-mobile] .tab-count {
+  font-size: 12.5px;
+}
+
+[data-mobile] .tab-menu-btn {
+  width: 32px;
+  height: 32px;
+  margin-right: 2px;
+}
+
+[data-mobile] .tab-rename {
+  height: 32px;
+  font-size: 16px;
+}
+
+/* Canvas overlays: conflicts top left, zoom top right, the selection or tool card at the bottom. */
+[data-mobile] .status {
+  left: max(10px, var(--safe-left));
+  top: 10px;
+  max-width: calc(100% - 20px - 132px);
+}
+
+/* The Overview has the floor usage; the canvas keeps its room. */
+[data-mobile] .status-usage {
+  display: none;
+}
+
+[data-mobile] .status-chip {
+  height: 30px;
+  padding: 0 11px;
+  border-radius: 15px;
+  font-size: 12.5px;
+}
+
+[data-mobile] .zoom-bar {
+  top: 10px;
+  right: max(10px, var(--safe-right));
+  bottom: auto;
+  padding: 3px;
+}
+
+[data-mobile] .zoom-bar .icon-btn,
+[data-mobile] .zoom-value {
+  height: 36px;
+}
+
+[data-mobile] .zoom-bar .icon-btn {
+  width: 36px;
+}
+
+.canvas-card,
+.mobile-hint {
+  position: absolute;
+  left: max(10px, var(--safe-left));
+  right: max(10px, var(--safe-right));
+  bottom: 10px;
+  z-index: 6;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.canvas-card {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 54px;
+  padding: 6px;
+  background: var(--panel);
+  border-radius: 14px;
+  box-shadow: var(--shadow-pop), 0 0 0 1px rgba(15, 18, 25, 0.06);
+  animation: pop-in 0.15s ease-out;
+  user-select: none;
+}
+
+.canvas-card .divider-v {
+  height: 24px;
+  margin: 0 2px;
+}
+
+.canvas-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 6px 0 8px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  text-align: left;
+}
+
+.canvas-card-main:active {
+  background: var(--field);
+}
+
+.canvas-card-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.canvas-card-icon .swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.canvas-card-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.canvas-card-name,
+.canvas-card-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-card-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.canvas-card-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.canvas-card-chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+}
+
+.mode-bar {
+  gap: 6px;
+  padding-left: 14px;
+}
+
+.mode-bar-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+  line-height: 1.3;
+}
+
+.mobile-hint {
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(233, 235, 238, 0.9);
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Overlay sheets cover the canvas from below; docked sheets take a row under it. */
+.sheet-layer {
+  grid-area: 2 / 1;
+  position: relative;
+  z-index: 15;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.sheet-dock {
+  grid-area: 3 / 1;
+  z-index: 15;
+  min-width: 0;
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 28px rgba(15, 18, 25, 0.14), 0 0 0 1px rgba(15, 18, 25, 0.06);
+  pointer-events: auto;
+  animation: sheet-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.sheet[hidden] {
+  display: none;
+}
+
+.sheet-layer .sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 62%;
+}
+
+.sheet-layer .sheet-tall {
+  height: 84%;
+  max-height: none;
+}
+
+.sheet-layer .sheet.expanded {
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+}
+
+/* Overlaps the canvas by its rounded corners, so they show the plan behind them. */
+.sheet-dock .sheet {
+  position: relative;
+  margin-top: -16px;
+  max-height: 48vh;
+  max-height: 48dvh;
+  box-shadow: 0 -4px 16px rgba(15, 18, 25, 0.1), 0 0 0 1px rgba(15, 18, 25, 0.06);
+}
+
+.sheet-dock .sheet.expanded {
+  height: calc(100dvh - var(--topbar-h) - var(--safe-top) - var(--nav-h) - var(--safe-bottom));
+  max-height: none;
+  margin-top: 0;
+  border-radius: 0;
+}
+
+/* The sheet's title already names these panels. */
+.sheet-furniture .library > .section-header .section-title,
+.sheet-plan .section-header .section-title {
+  display: none;
+}
+
+/* The handle: pull down to close, up to expand, tap to switch heights. */
+.sheet-head {
+  flex-shrink: 0;
+  padding: 6px max(6px, var(--safe-right)) 2px max(16px, var(--safe-left));
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.sheet-grip {
+  width: 36px;
+  height: 4px;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+
+.sheet-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--divider);
+  padding: 0 var(--safe-right) 0 var(--safe-left);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(32px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.view-grid-size {
+  margin-top: 12px;
+}
+
+/* Bottom bar */
+.mobile-nav {
+  grid-row: -2;
+  grid-column: 1 / -1;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  user-select: none;
+}
+
+.mobile-nav-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  height: var(--nav-h);
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+}
+
+.mobile-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 30px;
+  border-radius: 15px;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.mobile-nav-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.mobile-nav-btn[aria-expanded='true'] {
+  color: var(--accent-text);
+}
+
+.mobile-nav-btn[aria-expanded='true'] .mobile-nav-icon {
+  background: var(--accent-soft);
+}
+
+.mobile-nav-badge {
+  position: absolute;
+  top: 5px;
+  left: calc(50% + 10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+/*
+ * Wide and short (a phone held sideways): sheets come in from the right, docked ones in a column
+ * beside the canvas, and the bottom bar is slimmer.
+ */
+@media (min-aspect-ratio: 4/3) {
+  [data-mobile] {
+    --nav-h: 46px;
+  }
+  [data-mobile] .app {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: calc(var(--topbar-h) + var(--safe-top)) minmax(0, 1fr) calc(var(--nav-h) + var(--safe-bottom));
+  }
+  [data-mobile] .sheet-dock {
+    grid-area: 2 / 2;
+  }
+  [data-mobile] .sheet {
+    border-radius: 16px 0 0 16px;
+    animation-name: sheet-in-side;
+  }
+  [data-mobile] .sheet-layer .sheet,
+  [data-mobile] .sheet-layer .sheet-tall,
+  [data-mobile] .sheet-layer .sheet.expanded {
+    top: 0;
+    left: auto;
+    width: min(400px, 100%);
+    height: auto;
+    max-height: none;
+    border-radius: 16px 0 0 16px;
+  }
+  [data-mobile] .sheet-dock .sheet,
+  [data-mobile] .sheet-dock .sheet.expanded {
+    width: min(380px, 48vw);
+    height: 100%;
+    max-height: none;
+    margin: 0 0 0 -16px;
+    border-radius: 16px 0 0 16px;
+  }
+  [data-mobile] .sheet-head {
+    padding-top: 4px;
+    cursor: default;
+  }
+  [data-mobile] .sheet-grip {
+    display: none;
+  }
+  [data-mobile] .mobile-nav-btn {
+    flex-direction: row;
+    gap: 6px;
+  }
+  [data-mobile] .mobile-nav-icon {
+    width: 34px;
+  }
+  [data-mobile] .mobile-nav-badge {
+    top: 4px;
+    left: calc(50% - 22px);
+  }
+}
+
+@keyframes sheet-in-side {
+  from {
+    transform: translateX(32px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* Finger-sized controls */
+[data-mobile] .btn {
+  height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+[data-mobile] .btn-sm {
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+[data-mobile] .icon-btn {
+  width: 40px;
+  height: 40px;
+}
+
+[data-mobile] .icon-btn-sm {
+  width: 34px;
+  height: 34px;
+}
+
+[data-mobile] .input,
+[data-mobile] .text-input,
+[data-mobile] .select {
+  height: 40px;
+}
+
+[data-mobile] .input input,
+[data-mobile] .input select,
+[data-mobile] .text-input,
+[data-mobile] .select,
+[data-mobile] .name-input {
+  font-size: 16px;
+}
+
+[data-mobile] .input-prefix,
+[data-mobile] .input-suffix {
+  font-size: 13px;
+}
+
+[data-mobile] .name-input {
+  height: 40px;
+}
+
+[data-mobile] .segmented button {
+  height: 34px;
+  font-size: 13px;
+}
+
+[data-mobile] .chip {
+  height: 36px;
+  font-size: 13px;
+}
+
+[data-mobile] .chip-sm {
+  height: 32px;
+  padding: 0 10px;
+}
+
+[data-mobile] .link-btn,
+[data-mobile] .section-hint,
+[data-mobile] .field-label,
+[data-mobile] .field-note,
+[data-mobile] .inspector-meta {
+  font-size: 13px;
+}
+
+[data-mobile] .section {
+  padding: 14px 16px 18px;
+}
+
+[data-mobile] .section-title {
+  font-size: 13px;
+}
+
+[data-mobile] .section-toggle {
+  height: 32px;
+}
+
+[data-mobile] .switch {
+  width: 42px;
+  height: 26px;
+  border-radius: 13px;
+}
+
+[data-mobile] .switch::after {
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+}
+
+[data-mobile] .switch[aria-checked='true']::after {
+  transform: translateX(16px);
+}
+
+[data-mobile] .toggle-row {
+  min-height: 40px;
+  font-size: 14px;
+}
+
+[data-mobile] .toggle-row .desc {
+  font-size: 12.5px;
+}
+
+[data-mobile] .checkbox {
+  min-height: 36px;
+  font-size: 14px;
+}
+
+[data-mobile] .checkbox input {
+  width: 20px;
+  height: 20px;
+}
+
+[data-mobile] .swatches {
+  gap: 10px;
+}
+
+[data-mobile] .swatch-btn,
+[data-mobile] .color-input {
+  width: 32px;
+  height: 32px;
+}
+
+[data-mobile] .menu {
+  min-width: 230px;
+}
+
+[data-mobile] .menu-item {
+  height: 44px;
+  gap: 12px;
+  padding: 0 12px;
+  font-size: 15px;
+}
+
+[data-mobile] .object-row {
+  height: 44px;
+  font-size: 14px;
+}
+
+[data-mobile] .object-row .size {
+  font-size: 12.5px;
+}
+
+[data-mobile] .issue {
+  padding: 10px;
+  font-size: 13.5px;
+}
+
+[data-mobile] .stat-label {
+  font-size: 12px;
+}
+
+[data-mobile] .stat-value {
+  font-size: 15px;
+}
+
+[data-mobile] .readout-label {
+  font-size: 11.5px;
+}
+
+[data-mobile] .readout-value {
+  font-size: 14px;
+}
+
+[data-mobile] .plan-tool {
+  height: 64px;
+  font-size: 13px;
+}
+
+[data-mobile] .wall-row {
+  grid-template-columns: auto minmax(0, 1fr) 84px 64px 34px;
+  gap: 8px;
+}
+
+[data-mobile] .wall-row-side,
+[data-mobile] .wall-row-open {
+  font-size: 13.5px;
+}
+
+[data-mobile] .plan-share-note {
+  font-size: 13px;
+}
+
+/* Furniture library */
+[data-mobile] .library-group-toggle {
+  height: 38px;
+  font-size: 12.5px;
+}
+
+[data-mobile] .library-group-title {
+  font-size: 12.5px;
+}
+
+[data-mobile] .catalog-row-main {
+  min-height: 54px;
+  gap: 12px;
+  padding: 4px 8px;
+}
+
+[data-mobile] .catalog-row-name {
+  font-size: 14.5px;
+}
+
+[data-mobile] .catalog-row-meta {
+  font-size: 12.5px;
+}
+
+[data-mobile] .catalog-row-icon {
+  width: 38px;
+  height: 38px;
+}
+
+[data-mobile] .live-search-btn {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+[data-mobile] .library-footer {
+  padding: 10px 16px 12px;
+}
+
+/* Dialogs */
+[data-mobile] .dialog {
+  width: min(440px, calc(100vw - 24px));
+}
+
+[data-mobile] .dialog-title {
+  font-size: 17px;
+}
+
+[data-mobile] .dialog-desc,
+[data-mobile] .about-block p,
+[data-mobile] .details-list {
+  font-size: 14px;
+}
+
+[data-mobile] .toasts {
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 76px);
+  width: calc(100vw - 32px);
+}
+
+[data-mobile] .toast {
+  font-size: 14px;
+  text-align: center;
 }

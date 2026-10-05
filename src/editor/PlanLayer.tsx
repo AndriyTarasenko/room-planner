@@ -24,7 +24,7 @@ const selectRoom = (id: string) => () => projectStore.getState().select(id);
  * Double-clicking a wall adds a corner there, so the two halves can be moved apart: that is
  * how a straight wall gets a niche, a bay or a slanted part.
  */
-const splitWallAtPointer = (roomId: string, wall: number) => (e: KonvaEventObject<MouseEvent>) => {
+const splitWallAtPointer = (roomId: string, wall: number) => (e: KonvaEventObject<MouseEvent | TouchEvent>) => {
   const s = projectStore.getState();
   const room = selectRooms(s).find((r) => r.id === roomId);
   const p = e.target.getParent()?.getRelativePointerPosition();
@@ -96,6 +96,7 @@ export function RoomWalls({ rooms, scale }: { rooms: readonly Room[]; scale: num
               onClick={selectRoom(room.id)}
               onTap={selectRoom(room.id)}
               onDblClick={splitWallAtPointer(room.id, index)}
+              onDblTap={splitWallAtPointer(room.id, index)}
             />
           ))}
           {room.corners.map((_, i) => {
@@ -112,7 +113,9 @@ export function RoomWalls({ rooms, scale }: { rooms: readonly Room[]; scale: num
                 dash={dash}
                 hitStrokeWidth={10}
                 onClick={selectRoom(room.id)}
+                onTap={selectRoom(room.id)}
                 onDblClick={splitWallAtPointer(room.id, i)}
+                onDblTap={splitWallAtPointer(room.id, i)}
               />
             );
           })}

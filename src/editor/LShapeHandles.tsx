@@ -14,6 +14,8 @@ interface Props {
   item: LItem & { id: string };
   /** Pixels per cm. */
   scale: number;
+  /** Bigger handles for a finger. */
+  touch: boolean;
 }
 
 function setCursor(e: KonvaEventObject<MouseEvent>, cursor: string) {
@@ -37,7 +39,7 @@ const currentItem = (id: string) => selectItems(projectStore.getState()).find((i
  * edge, so both parts of the L can be sized separately (the transformer only offers the
  * bounding box). Sizes are whole centimeters; the dragged value is shown next to the handle.
  */
-export function LShapeHandles({ item, scale }: Props) {
+export function LShapeHandles({ item, scale, touch }: Props) {
   const px = (v: number) => v / scale;
   const [drag, setDrag] = useState<LHandle | null>(null);
   /** The item as it was when the drag began: handle positions are measured in its frame. */
@@ -70,8 +72,8 @@ export function LShapeHandles({ item, scale }: Props) {
     s.endGesture();
   };
 
-  const w = px(26);
-  const h = px(8);
+  const w = px(touch ? 32 : 26);
+  const h = px(touch ? 12 : 8);
   const frame = frameOf(item);
 
   return (
@@ -101,7 +103,7 @@ export function LShapeHandles({ item, scale }: Props) {
             stroke={CANVAS.accent}
             strokeWidth={1.5}
             strokeScaleEnabled={false}
-            hitStrokeWidth={12}
+            hitStrokeWidth={touch ? 24 : 12}
             draggable
             onDragStart={begin(handle)}
             onDragMove={move(handle)}

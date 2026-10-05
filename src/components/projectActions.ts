@@ -2,6 +2,7 @@ import { itemIdsInRoom } from '../plan/rooms';
 import { projectStore, selectActiveLayout, selectProjectData, selectRooms } from '../store';
 import { ProjectFileError, parseProjectJson, serializeProject } from '../store/serialization';
 import { downloadText, pickTextFile, timestampForFilename } from '../utils/files';
+import { undoHint } from '../hooks/useMediaQuery';
 import { toast } from './ui/toastStore';
 
 /** Deletes a room with its furniture (in every layout on its floor plan) and says what went with it. */
@@ -18,7 +19,7 @@ export function deleteRoom(roomId: string) {
   const objects = s.layouts.filter((l) => l.planId === planId).reduce((sum, l) => sum + itemIdsInRoom(l.furniture, room).size, 0);
   s.deleteRoom(roomId);
   const withObjects = objects > 0 ? ` and ${objects} object${objects === 1 ? '' : 's'} in it` : '';
-  toast(`Deleted “${room.name}”${withObjects}. Press Ctrl+Z to restore.`);
+  toast(`Deleted “${room.name}”${withObjects}. ${undoHint()} to restore.`);
 }
 
 /** "Layout A", "Layout A and Layout C", "Layout A and 2 other layouts". */
@@ -50,7 +51,7 @@ export async function importProject() {
   try {
     const data = parseProjectJson(file.text);
     projectStore.getState().loadProject(data);
-    toast(`Imported “${file.name}”. Press Ctrl+Z to go back.`);
+    toast(`Imported “${file.name}”. ${undoHint()} to go back.`);
   } catch (error) {
     const message = error instanceof ProjectFileError ? error.message : 'The file could not be read.';
     toast(`Import failed: ${message}`, 'error');

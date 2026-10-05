@@ -31,5 +31,5 @@ export const PILL_H = 17;
 /** Width in px of a value pill showing `text`. */
 export const pillWidth = (text: string) => measureTextWidth(text, `600 ${PILL_FONT}px ${FONT_FAMILY}`) + 10;
 
-/** Space around the plan when fitting it to the canvas, in px. */
-export const CANVAS_PADDING = 64;
+/** Space around the plan when fitting it to the canvas, in px: less on a phone, where every px counts. */
+export const canvasPadding = (width: number, height: number) => Math.round(Math.min(64, Math.max(40, Math.min(width, height) / 10)));

@@ -27,6 +27,7 @@ Everything runs in the browser. There is no backend and no account; the project 
 - **Layout variants**: tabs to create, duplicate, rename, delete and switch layouts. Each layout has its own furniture. New and duplicated layouts share the floor plan (rooms, walls, doors, windows) of the layout they came from, so a wall fixed once is fixed in all of them. While a layout shares its floor plan, *Floor plan shared with …* shows under the Floor plan tools and in the room, door and window inspectors. Its **Unlink** button (or **Unlink floor plan** in the tab's ⋯ menu) gives the layout its own copy, so you can compare a knocked-out wall or a moved door without touching the other layouts. **Duplicate with its own floor plan** in the + and ⋯ menus does both in one step.
 - **Undo/redo**: covers moves, resizes, rotations, adds, deletes, property edits, room, wall, door and window changes, layout changes, "new plan" and imports.
 - **Persistence**: autosaves to `localStorage`, plus JSON export and import.
+- **Phones and tablets**: below 900 px of width (or on a touch screen held sideways), the side panels give way to a bottom bar. *Furniture*, *Floor plan* and *Overview* open as sheets over the plan and close once you pick something. *View* (grid, snapping, clearances, distances) and the selection's properties open below the plan, which shrinks to stay in sight; with the phone held sideways they open beside it. Tapping an object shows a card with rotate, duplicate, delete and deselect; tap the card for all its properties. Two fingers pinch to zoom and pan, handles are larger, and a double tap adds or removes a room corner. Drawing walls and measuring get *Finish*, *Undo* and *Done* buttons, since a phone has no `Enter` or `Escape`.
 
 ### Keyboard shortcuts
 
@@ -254,7 +255,9 @@ src/
                 "Draw walls" tool, the Ruler, furniture nodes, labels, measurements, clearance/collision
                 overlays, drag logic, transient UI state
   components/   Top bar, layout tabs, library, inspector, dialogs, UI primitives
-  hooks/        Keyboard shortcuts, element size, commit-on-unmount for fields, folded groups
+    mobile/     Phone layout: bottom bar, sheets, selection card, draw and measure bars
+  hooks/        Keyboard shortcuts, element size, commit-on-unmount for fields, folded groups,
+                media queries (which layout, touch or mouse)
   utils/        Formatting, colors, ids, number parsing, file helpers
   appInfo.ts    Version, build hash and source URL, injected by vite.config.ts
 docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mapping
@@ -372,7 +375,7 @@ docs/furniture-catalog.md      Catalog maintenance: adding products, IKEA mappin
 - `localStorage` is per browser and per origin. Use Export JSON for backups or to move between machines (see [Local data](#local-data-projects-live-in-your-browser)).
 - There is one project per browser and site. To keep several apartments, export each one to its own file.
 - The app is a single page without routes, so there are no deep links, and GitHub Pages needs no 404 fallback.
-- Desktop-first: the three-panel layout needs roughly 1100 px of width. Touch selection works in Konva, but it has not been tuned for phones.
+- The three-panel desktop layout needs roughly 1100 px of width; narrower than 900 px, the phone layout takes over. On a touch screen you add furniture by tapping it in the library (dragging it onto the plan needs a mouse), and there is no typing an exact wall length while drawing walls: set it afterwards in the room's *Walls* list.
 - The curated IKEA catalog covers 69 products checked on IKEA Germany on 2026-09-30. IKEA can change dimensions or retire products; placed items are unaffected, but catalog entries need occasional re-checking.
 - IKEA online search depends on an unofficial service and returns sizes only as short labels, so you confirm dimensions for products that aren't in the built-in catalog. Region is fixed to Germany (English names) in `catalog/providers/ikea/config.ts`.
 - Search uses German-market English product names. German terms such as "Kommode" only find products in IKEA online search, not in the built-in catalog.

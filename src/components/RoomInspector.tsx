@@ -2,6 +2,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
 import { useUi } from '../editor/uiStore';
 import { analyzeLayoutCached } from '../furniture/analysis';
+import { useTouchScreen } from '../hooks/useMediaQuery';
 import { OPENING_DEFAULTS } from '../plan/openings';
 import { itemIdsInRoom } from '../plan/rooms';
 import { MIN_WALL_LENGTH, roomArea, roomBounds, roomRect } from '../plan/shape';
@@ -111,6 +112,7 @@ function WallsSection({ room }: { room: Room }) {
   const { setWall, setRoomWallLength, splitRoomWall } = projectStore.getState();
   const { setHoveredWall } = useUi.getState();
   const names = wallNames(room);
+  const touch = useTouchScreen();
   // Don't leave a wall highlighted when the inspector goes away.
   useEffect(() => () => useUi.getState().setHoveredWall(null), []);
   const addCorner = (wall: number) => {
@@ -156,7 +158,7 @@ function WallsSection({ room }: { room: Room }) {
         })}
       </div>
       <p className="field-note">
-        On the plan, drag a wall or corner to reshape the room. Double-click a wall to add a corner there, or a corner to remove it. A wall that is switched off leaves the side open, for a balcony or an open-plan space.
+        On the plan, drag a wall or corner to reshape the room. {touch ? 'Double-tap' : 'Double-click'} a wall to add a corner there, or a corner to remove it. A wall that is switched off leaves the side open, for a balcony or an open-plan space.
       </p>
     </Section>
   );

@@ -3,6 +3,7 @@ import { startDrawing, stopDrawing } from '../editor/drawTool';
 import { type PlanTool, addPlanElement, startPlanDrag } from '../editor/planTools';
 import { toggleMeasuring } from '../editor/rulerTool';
 import { useUi } from '../editor/uiStore';
+import { useTouchScreen } from '../hooks/useMediaQuery';
 import { roomArea } from '../plan/shape';
 import { selectRooms, useEditor } from '../store';
 import { formatArea } from '../utils/format';
@@ -27,9 +28,11 @@ const TOOLS: { tool: PlanTool; label: string; icon: ReactNode; title: string }[]
   { tool: 'passage', label: 'Passage', icon: OPENING_ICONS.passage, title: 'Add an opening without a door, or drag it onto a wall' },
 ];
 
-function FloorPlanTools() {
+/** Rooms, doors and windows to add, Draw walls and the Ruler. */
+export function FloorPlanTools() {
   const rooms = useEditor(selectRooms);
   const tool = useUi((s) => s.tool);
+  const touch = useTouchScreen();
   const drawing = tool === 'draw';
   const measuring = tool === 'measure';
   const area = rooms.reduce((sum, r) => sum + roomArea(r), 0);
@@ -91,7 +94,7 @@ function FloorPlanTools() {
           ? 'Click to place each corner. Click the first corner or press Enter to finish; type a number for an exact wall length.'
           : measuring
             ? 'Drag between two points, or click both ends. Ends snap to corners, walls and furniture; hold Alt to place them freely.'
-            : 'Draw walls for a room of any shape. Click a room, door or window on the plan to change it.'}
+            : `Draw walls for a room of any shape. ${touch ? 'Tap' : 'Click'} a room, door or window on the plan to change it.`}
       </p>
       <SharedPlanNote />
     </Section>
