@@ -4,7 +4,9 @@ import { parseProduct } from '../../catalog/validation';
 import { PRESETS, presetForType } from '../../furniture/presets';
 import { FURNITURE_TYPES } from '../../types';
 import { GENERIC_PRODUCTS } from './generic';
+import { FLEXISPOT_PRODUCTS } from './flexispot';
 import { IKEA_CATALOG_VERIFIED_ON, IKEA_PRODUCTS } from './ikea';
+import { LG_PRODUCTS } from './lg';
 
 describe('built-in catalog data', () => {
   it('has unique ids', () => {
@@ -99,7 +101,30 @@ describe('curated IKEA products', () => {
     ]);
   });
 
-  it('was verified on the documented date', () => {
-    expect(IKEA_PRODUCTS.every((p) => p.sourceLastVerified === IKEA_CATALOG_VERIFIED_ON)).toBe(true);
+  it('was verified on the documented date, or later for entries added since', () => {
+    expect(IKEA_PRODUCTS.every((p) => p.sourceLastVerified! >= IKEA_CATALOG_VERIFIED_ON)).toBe(true);
+  });
+});
+
+describe('curated products of other manufacturers', () => {
+  const products = [...FLEXISPOT_PRODUCTS, ...LG_PRODUCTS];
+
+  it.each(products.map((p) => [p.id, p] as const))('%s has verified provenance and dimensions', (_id, p) => {
+    expect(p.id.startsWith(`${p.manufacturer.toLowerCase()}:`)).toBe(true);
+    expect(p.productUrl).toMatch(/^https:\/\//);
+    expect(p.source).toContain(p.productUrl);
+    expect(p.sourceLastVerified).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(p.sourceLastVerified! <= CATALOG_METADATA.lastUpdated).toBe(true);
+    const measured = String(p.metadata?.sourceMeasurements);
+    for (const v of [p.width, p.depth, p.height, p.heightMax].filter((x) => x !== undefined)) {
+      expect(measured).toMatch(new RegExp(`\\b${String(v).replace('.', '\\.')}\\b`));
+    }
+  });
+
+  it('places the LG TV on a TV bench and the FlexiSpot desk as an L', () => {
+    expect(LG_PRODUCTS[0].kind).toBe('tv');
+    const q1l = FLEXISPOT_PRODUCTS[0];
+    expect(q1l.shape).toEqual({ kind: 'l', segment: 60, returnWidth: 60, returnSide: 'right' });
+    expect([q1l.width, q1l.depth, q1l.height, q1l.heightMax]).toEqual([180, 120, 72, 116.5]);
   });
 });

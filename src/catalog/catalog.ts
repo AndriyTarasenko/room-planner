@@ -1,15 +1,22 @@
 import { GENERIC_PRODUCTS } from '../data/furniture/generic';
+import { FLEXISPOT_PRODUCTS } from '../data/furniture/flexispot';
 import { IKEA_PRODUCTS } from '../data/furniture/ikea';
+import { LG_PRODUCTS } from '../data/furniture/lg';
 import { type FurnitureProduct, GENERIC_MANUFACTURER } from './types';
 
 /** Version of the built-in catalog data, shown in the About dialog. Bump when entries change. */
 export const CATALOG_METADATA = {
-  version: '1.3',
-  lastUpdated: '2026-10-03',
+  version: '1.4',
+  lastUpdated: '2026-10-07',
 } as const;
 
 /** Everything that ships with the app: generic furniture first, then curated manufacturer products. */
-export const BUILT_IN_PRODUCTS: readonly FurnitureProduct[] = [...GENERIC_PRODUCTS, ...IKEA_PRODUCTS];
+export const BUILT_IN_PRODUCTS: readonly FurnitureProduct[] = [
+  ...GENERIC_PRODUCTS,
+  ...IKEA_PRODUCTS,
+  ...FLEXISPOT_PRODUCTS,
+  ...LG_PRODUCTS,
+];
 
 const builtInById = new Map(BUILT_IN_PRODUCTS.map((p) => [p.id, p]));
 

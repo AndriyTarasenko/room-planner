@@ -7,7 +7,7 @@ How the catalog is built, how to add a real product safely, and how IKEA data is
 | Layer | Where | Origin | Notes |
 | --- | --- | --- | --- |
 | Generic furniture | `src/data/furniture/generic.ts` (built from `src/furniture/presets.ts`) | `built-in` | Typical sizes, always offline. |
-| Curated manufacturer products | `src/data/furniture/ikea.ts` | `built-in` | Real products, dimensions verified by hand. |
+| Curated manufacturer products | `src/data/furniture/ikea.ts`, `flexispot.ts`, `lg.ts` | `built-in` | Real products, dimensions verified by hand. |
 | My furniture | `localStorage` key `room-planner:catalog` | `user` | Saved from online search or custom objects. Also holds favorites and the 8 most recently used ids. |
 | Live results | `src/catalog/providers/*` | `live` | Optional, online, never placed without the user confirming the size. |
 
@@ -113,7 +113,7 @@ Tests use a trimmed real response (`searchResponse.fixture.ts`) and a mocked `fe
 
 ## Adding another manufacturer
 
-- **Curated products** (e.g. FlexiSpot desks): create `src/data/furniture/flexispot.ts` exporting `FurnitureProduct[]` with ids like `flexispot:<model>` and `manufacturer: 'FlexiSpot'`, then append it to `BUILT_IN_PRODUCTS` in `src/catalog/catalog.ts`. The manufacturer filter picks it up automatically. Copy the checks in `catalogData.test.ts` for the new source.
+- **Curated products**: see `src/data/furniture/flexispot.ts` and `lg.ts`. For a new maker, create `src/data/furniture/<maker>.ts` exporting `FurnitureProduct[]` with ids like `<maker>:<model>` and a `manufacturer` name, then append it to `BUILT_IN_PRODUCTS` in `src/catalog/catalog.ts`. The manufacturer filter picks it up automatically. Add it to the "other manufacturers" checks in `catalogData.test.ts`. When the manufacturer's page lacks a dimension (LG lists TVs without their stand), a retailer listing may fill the gap: name both in `source` and record both in `sourceMeasurements`.
 - **A live provider** (only if the manufacturer has a browser-callable, keyless endpoint): add `src/catalog/providers/<name>/` implementing `LiveCatalogProvider` (`search(query, { signal })` → `LiveProductCandidate[]`), keep all field mapping in its own `normalize…` module with fixture-based tests, and list it in `src/catalog/providers/index.ts`. The furniture browser renders a "Search … online" section per provider without other changes.
 
 Never add API keys, tokens or a proxy: everything deployed to GitHub Pages is public.

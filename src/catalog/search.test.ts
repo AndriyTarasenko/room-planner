@@ -99,8 +99,8 @@ describe('catalog filters', () => {
   });
 
   it('lists manufacturers with Generic first', () => {
-    expect(manufacturersOf(BUILT_IN_PRODUCTS)).toEqual(['Generic', 'IKEA']);
+    expect(manufacturersOf(BUILT_IN_PRODUCTS)).toEqual(['Generic', 'FlexiSpot', 'IKEA', 'LG']);
     const extra = { ...BUILT_IN_PRODUCTS[0], id: 'x', manufacturer: 'Custom' };
-    expect(manufacturersOf([...BUILT_IN_PRODUCTS, extra])).toEqual(['Generic', 'Custom', 'IKEA']);
+    expect(manufacturersOf([...BUILT_IN_PRODUCTS, extra])).toEqual(['Generic', 'Custom', 'FlexiSpot', 'IKEA', 'LG']);
   });
 });
